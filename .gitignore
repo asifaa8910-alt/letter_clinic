@@ -1,0 +1,23 @@
+# Node modules and build output
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/*.local
+
+# Logs and system files
+**/logs
+**/*.log
+**/.DS_Store
+.agent/
+.gemini/
+**/.env
+**/backend/.env
+**/frontend/.env
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/*.local
+**/logs
+**/*.log
+**/.DS_Store
+
