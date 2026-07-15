@@ -4,7 +4,7 @@ pipeline{
         stage ('Checkout'){
             steps{
                 git branch: 'main',
-                url: 'https://github.com/asifaa8910-alt/.git'
+                url: 'https://github.com/asifaa8910-alt/letter_clinic.git'
             }
         }
         stage('Install Backend Dependencies'){
