@@ -73,3 +73,20 @@ export const reviewUpdateValidator = [
   body("rating").optional().isInt({ min: 1, max: 5 }).withMessage("Rating must be between 1 and 5"),
   body("comment").optional().trim().notEmpty().withMessage("Comment cannot be empty")
 ];
+
+export const rescheduleValidator = [
+  body("newSlotId").isMongoId().withMessage("Invalid newSlotId")
+];
+
+export const verificationSubmitValidator = [
+  body("license").trim().notEmpty().withMessage("License details are required"),
+  body("degree").trim().notEmpty().withMessage("Degree details are required")
+];
+
+export const reminderUpdateValidator = [
+  body("medicineName").optional().trim().notEmpty().withMessage("Medicine name cannot be empty"),
+  body("dosage").optional().trim().notEmpty().withMessage("Dosage description cannot be empty"),
+  body("frequency").optional().trim().notEmpty().withMessage("Frequency cannot be empty"),
+  body("time").optional().trim().notEmpty().withMessage("Time cannot be empty")
+];
+

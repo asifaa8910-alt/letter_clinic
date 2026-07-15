@@ -22,7 +22,10 @@ import {
   reviewValidator,
   changePasswordValidator,
   reminderValidator,
-  reviewUpdateValidator
+  reviewUpdateValidator,
+  rescheduleValidator,
+  verificationSubmitValidator,
+  reminderUpdateValidator
 } from "../validators/index.js";
 
 const router = Router();
@@ -56,6 +59,8 @@ router.get("/patient/reminders", protect, restrictTo("patient"), patientControll
 router.post("/patient/reminders", protect, restrictTo("patient"), reminderValidator, validateRequest, patientController.createReminder);
 router.put("/patient/reminders/:id/toggle", protect, restrictTo("patient"), patientController.toggleReminder);
 router.delete("/patient/reminders/:id", protect, restrictTo("patient"), patientController.deleteReminder);
+router.put("/patient/reminders/:id", protect, restrictTo("patient"), reminderUpdateValidator, validateRequest, patientController.updateReminder);
+router.get("/patient/stats", protect, restrictTo("patient"), patientController.getStats);
 
 // ==========================================
 // DOCTOR MODULE APIs
@@ -69,6 +74,8 @@ router.get("/doctor/prescriptions", protect, restrictTo("doctor"), doctorControl
 router.get("/doctor/prescriptions/:id", protect, doctorController.getPrescriptionById);
 router.post("/doctor/prescription", protect, restrictTo("doctor"), prescriptionValidator, validateRequest, doctorController.createPrescription);
 router.get("/doctor/verification", protect, restrictTo("doctor"), doctorController.getVerificationStatus);
+router.post("/doctor/verification/submit", protect, restrictTo("doctor"), verificationSubmitValidator, validateRequest, doctorController.submitVerification);
+router.get("/doctor/stats", protect, restrictTo("doctor"), doctorController.getStats);
 
 // ==========================================
 // MARKETPLACE APIs (Public/Authenticated)
@@ -84,6 +91,7 @@ router.post("/appointments/book", protect, restrictTo("patient"), appointmentBoo
 router.get("/appointments", protect, appointmentController.getMyAppointments);
 router.put("/appointments/:id/cancel", protect, appointmentController.cancel);
 router.put("/appointments/:id/complete", protect, restrictTo("doctor"), appointmentController.complete);
+router.put("/appointments/:id/reschedule", protect, rescheduleValidator, validateRequest, appointmentController.reschedule);
 
 // ==========================================
 // NOTIFICATIONS MODULE APIs

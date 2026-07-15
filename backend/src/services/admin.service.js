@@ -4,6 +4,7 @@ import { Doctor } from "../models/doctor.model.js";
 import { DoctorVerification } from "../models/doctorVerification.model.js";
 import { Appointment } from "../models/appointment.model.js";
 import { Slot } from "../models/slot.model.js";
+import { Review } from "../models/review.model.js";
 import { ActivityLog } from "../models/activityLog.model.js";
 
 export const getVerifications = async () => {
@@ -217,11 +218,10 @@ export const updateDoctorByAdmin = async (id, doctorData) => {
     await DoctorVerification.findOneAndUpdate({ doctorId: doctor._id }, { status: "Approved" });
   }
 
-  const actor = "Admin";
   await ActivityLog.create({
     timestamp: new Date().toLocaleString(),
     action: "Doctor Updated",
-    details: `${actor} updated doctor profile for ${doctorData.name}`
+    details: `Admin updated doctor profile for ${doctorData.name}`
   });
 
   return doctor;

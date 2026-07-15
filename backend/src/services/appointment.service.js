@@ -1,6 +1,5 @@
 import { Appointment } from "../models/appointment.model.js";
 import { Slot } from "../models/slot.model.js";
-import { User } from "../models/user.model.js";
 import { ActivityLog } from "../models/activityLog.model.js";
 import { Notification } from "../models/notification.model.js";
 
@@ -115,3 +114,68 @@ export const completeAppointment = async (appointmentId) => {
     details: `Consultation between ${app.patientName} and ${app.doctorName} completed.`
   });
 };
+
+export const rescheduleAppointment = async (appointmentId, newSlotId) => {
+  const app = await Appointment.findById(appointmentId);
+  if (!app) {
+    throw new Error("Appointment not found");
+  }
+
+  if (app.status === "Cancelled" || app.status === "Completed") {
+    throw new Error(`Cannot reschedule a ${app.status.toLowerCase()} appointment.`);
+  }
+
+  const newSlot = await Slot.findById(newSlotId);
+  if (!newSlot || !newSlot.available) {
+    throw new Error("Selected slot is no longer available.");
+  }
+
+  // Release the old slot if it exists (make it available again)
+  const oldSlot = await Slot.findOne({
+    doctorId: app.doctorId,
+    date: app.slotDate,
+    time: app.slotTime
+  });
+  if (oldSlot) {
+    oldSlot.available = true;
+    await oldSlot.save();
+  }
+
+  // Reserve the new slot
+  newSlot.available = false;
+  await newSlot.save();
+
+  // Update appointment details
+  const oldDate = app.slotDate;
+  const oldTime = app.slotTime;
+  app.slotDate = newSlot.date;
+  app.slotTime = newSlot.time;
+  await app.save();
+
+  // Activity Log
+  await ActivityLog.create({
+    timestamp: new Date().toLocaleString(),
+    action: "Appointment Rescheduled",
+    details: `Patient ${app.patientName} rescheduled appointment with ${app.doctorName} from ${oldDate} ${oldTime} to ${newSlot.date} ${newSlot.time}.`
+  });
+
+  // Notifications
+  await Notification.create({
+    userId: app.patientId,
+    title: "Appointment Rescheduled",
+    message: `Your appointment with Dr. ${app.doctorName} has been rescheduled to ${newSlot.date} at ${newSlot.time}.`,
+    timestamp: new Date().toLocaleString(),
+    type: "appointment"
+  });
+
+  await Notification.create({
+    userId: app.doctorId,
+    title: "Appointment Rescheduled",
+    message: `Patient ${app.patientName} rescheduled their consultation to ${newSlot.date} at ${newSlot.time}.`,
+    timestamp: new Date().toLocaleString(),
+    type: "appointment"
+  });
+
+  return app;
+};
+

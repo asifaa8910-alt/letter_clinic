@@ -16,7 +16,7 @@ const sendError = (res, message, status = 400, errors = []) => {
 
 // Auth Controller
 export const authController = {
-  register: async (req, res, next) => {
+  register: async (req, res) => {
     try {
       const { name, email, password, role } = req.body;
       const data = await authService.registerUser(name, email, password, role);
@@ -26,7 +26,7 @@ export const authController = {
     }
   },
 
-  login: async (req, res, next) => {
+  login: async (req, res) => {
     try {
       const { email, password } = req.body;
       const data = await authService.loginUser(email, password);
@@ -36,7 +36,7 @@ export const authController = {
     }
   },
 
-  getCurrentUser: async (req, res, next) => {
+  getCurrentUser: async (req, res) => {
     try {
       sendSuccess(res, "Fetched current user", req.user);
     } catch (error) {
@@ -44,7 +44,7 @@ export const authController = {
     }
   },
 
-  changePassword: async (req, res, next) => {
+  changePassword: async (req, res) => {
     try {
       const { currentPassword, newPassword } = req.body;
       await authService.changePassword(req.user._id, currentPassword, newPassword);
@@ -57,7 +57,7 @@ export const authController = {
 
 // Patient Controller
 export const patientController = {
-  updateProfile: async (req, res, next) => {
+  updateProfile: async (req, res) => {
     try {
       const { name, email, password } = req.body;
       const updatedUser = await patientService.updatePatientProfile(req.user._id, name, email, password);
@@ -67,7 +67,7 @@ export const patientController = {
     }
   },
 
-  analyzeSymptoms: async (req, res, next) => {
+  analyzeSymptoms: async (req, res) => {
     try {
       const { age, gender, symptoms, duration, severity } = req.body;
       const report = await patientService.analyzeSymptoms(req.user._id, age, gender, symptoms, duration, severity);
@@ -77,7 +77,7 @@ export const patientController = {
     }
   },
 
-  getPrescriptions: async (req, res, next) => {
+  getPrescriptions: async (req, res) => {
     try {
       const list = await doctorService.getPatientPrescriptions(req.user._id);
       sendSuccess(res, "Fetched prescriptions", list);
@@ -86,7 +86,7 @@ export const patientController = {
     }
   },
 
-  addReview: async (req, res, next) => {
+  addReview: async (req, res) => {
     try {
       const { doctorId, rating, comment } = req.body;
       const review = await doctorService.addReview(doctorId, req.user.name, rating, comment);
@@ -96,7 +96,7 @@ export const patientController = {
     }
   },
 
-  getSymptomReports: async (req, res, next) => {
+  getSymptomReports: async (req, res) => {
     try {
       const list = await patientService.getSymptomReports(req.user._id);
       sendSuccess(res, "Fetched symptom reports", list);
@@ -105,7 +105,7 @@ export const patientController = {
     }
   },
 
-  getSymptomReportById: async (req, res, next) => {
+  getSymptomReportById: async (req, res) => {
     try {
       const report = await patientService.getSymptomReportById(req.params.id, req.user._id);
       if (!report) return sendError(res, "Report not found", 404);
@@ -115,7 +115,7 @@ export const patientController = {
     }
   },
 
-  deleteSymptomReport: async (req, res, next) => {
+  deleteSymptomReport: async (req, res) => {
     try {
       await patientService.deleteSymptomReport(req.params.id, req.user._id);
       sendSuccess(res, "Symptom report deleted successfully");
@@ -124,7 +124,7 @@ export const patientController = {
     }
   },
 
-  getReminders: async (req, res, next) => {
+  getReminders: async (req, res) => {
     try {
       const list = await patientService.getReminders(req.user._id);
       sendSuccess(res, "Fetched medication reminders", list);
@@ -133,7 +133,7 @@ export const patientController = {
     }
   },
 
-  createReminder: async (req, res, next) => {
+  createReminder: async (req, res) => {
     try {
       const { medicineName, dosage, frequency, time } = req.body;
       const rem = await patientService.createReminder(req.user._id, medicineName, dosage, frequency, time);
@@ -143,7 +143,7 @@ export const patientController = {
     }
   },
 
-  toggleReminder: async (req, res, next) => {
+  toggleReminder: async (req, res) => {
     try {
       const rem = await patientService.toggleReminder(req.params.id, req.user._id);
       sendSuccess(res, "Reminder active status toggled", rem);
@@ -152,7 +152,7 @@ export const patientController = {
     }
   },
 
-  deleteReminder: async (req, res, next) => {
+  deleteReminder: async (req, res) => {
     try {
       await patientService.deleteReminder(req.params.id, req.user._id);
       sendSuccess(res, "Reminder deleted successfully");
@@ -161,7 +161,7 @@ export const patientController = {
     }
   },
 
-  getPatientReviews: async (req, res, next) => {
+  getPatientReviews: async (req, res) => {
     try {
       const list = await doctorService.getPatientReviews(req.user.name);
       sendSuccess(res, "Fetched reviews written by patient", list);
@@ -170,7 +170,7 @@ export const patientController = {
     }
   },
 
-  updateReview: async (req, res, next) => {
+  updateReview: async (req, res) => {
     try {
       const { rating, comment } = req.body;
       const rev = await doctorService.updateReview(req.params.id, req.user.name, rating, comment);
@@ -180,10 +180,29 @@ export const patientController = {
     }
   },
 
-  deleteReview: async (req, res, next) => {
+  deleteReview: async (req, res) => {
     try {
       await doctorService.deleteReview(req.params.id, req.user.name);
       sendSuccess(res, "Review deleted successfully");
+    } catch (error) {
+      sendError(res, error.message);
+    }
+  },
+
+  updateReminder: async (req, res) => {
+    try {
+      const { medicineName, dosage, frequency, time } = req.body;
+      const updated = await patientService.updateReminder(req.params.id, req.user._id, { medicineName, dosage, frequency, time });
+      sendSuccess(res, "Medication reminder updated successfully", updated);
+    } catch (error) {
+      sendError(res, error.message);
+    }
+  },
+
+  getStats: async (req, res) => {
+    try {
+      const stats = await patientService.getPatientStats(req.user._id);
+      sendSuccess(res, "Fetched patient dashboard statistics", stats);
     } catch (error) {
       sendError(res, error.message);
     }
@@ -192,7 +211,7 @@ export const patientController = {
 
 // Doctor Controller
 export const doctorController = {
-  updateProfile: async (req, res, next) => {
+  updateProfile: async (req, res) => {
     try {
       const updatedDoc = await doctorService.updateDoctorProfile(req.user._id, req.body);
       sendSuccess(res, "Doctor profile updated successfully", updatedDoc);
@@ -201,7 +220,7 @@ export const doctorController = {
     }
   },
 
-  addSlot: async (req, res, next) => {
+  addSlot: async (req, res) => {
     try {
       const { date, time } = req.body;
       const slot = await doctorService.addDoctorSlot(req.user._id, date, time);
@@ -211,7 +230,7 @@ export const doctorController = {
     }
   },
 
-  deleteSlot: async (req, res, next) => {
+  deleteSlot: async (req, res) => {
     try {
       await doctorService.deleteDoctorSlot(req.params.id);
       sendSuccess(res, "Slot deleted successfully");
@@ -220,7 +239,7 @@ export const doctorController = {
     }
   },
 
-  createPrescription: async (req, res, next) => {
+  createPrescription: async (req, res) => {
     try {
       const { patientId, symptoms, medicines, notes } = req.body;
       const rx = await doctorService.createPrescription(patientId, req.user.name, symptoms, medicines, notes);
@@ -230,7 +249,7 @@ export const doctorController = {
     }
   },
 
-  getSlots: async (req, res, next) => {
+  getSlots: async (req, res) => {
     try {
       const list = await doctorService.getDoctorSlots(req.user._id);
       sendSuccess(res, "Fetched doctor availability slots", list);
@@ -239,7 +258,7 @@ export const doctorController = {
     }
   },
 
-  toggleSlot: async (req, res, next) => {
+  toggleSlot: async (req, res) => {
     try {
       const slot = await doctorService.toggleDoctorSlot(req.params.id, req.user._id);
       sendSuccess(res, "Slot availability status toggled", slot);
@@ -248,7 +267,7 @@ export const doctorController = {
     }
   },
 
-  getPrescriptions: async (req, res, next) => {
+  getPrescriptions: async (req, res) => {
     try {
       const list = await doctorService.getDoctorPrescriptions(req.user.name);
       sendSuccess(res, "Fetched doctor prescriptions history", list);
@@ -257,7 +276,7 @@ export const doctorController = {
     }
   },
 
-  getPrescriptionById: async (req, res, next) => {
+  getPrescriptionById: async (req, res) => {
     try {
       const rx = await doctorService.getPrescriptionById(req.params.id);
       if (!rx) return sendError(res, "Prescription not found", 404);
@@ -267,10 +286,29 @@ export const doctorController = {
     }
   },
 
-  getVerificationStatus: async (req, res, next) => {
+  getVerificationStatus: async (req, res) => {
     try {
       const status = await doctorService.getDoctorVerificationStatus(req.user._id);
       sendSuccess(res, "Fetched clinical license verification status", status);
+    } catch (error) {
+      sendError(res, error.message);
+    }
+  },
+
+  submitVerification: async (req, res) => {
+    try {
+      const { license, degree } = req.body;
+      const ver = await doctorService.submitVerification(req.user._id, license, degree);
+      sendSuccess(res, "Verification request submitted successfully", ver);
+    } catch (error) {
+      sendError(res, error.message);
+    }
+  },
+
+  getStats: async (req, res) => {
+    try {
+      const stats = await doctorService.getDoctorStats(req.user._id);
+      sendSuccess(res, "Fetched doctor dashboard statistics", stats);
     } catch (error) {
       sendError(res, error.message);
     }
@@ -279,7 +317,7 @@ export const doctorController = {
 
 // Marketplace Controller
 export const marketplaceController = {
-  getDoctors: async (req, res, next) => {
+  getDoctors: async (req, res) => {
     try {
       const doctors = await doctorService.getDoctors(req.query);
       sendSuccess(res, "Fetched doctor marketplace listings", doctors);
@@ -288,7 +326,7 @@ export const marketplaceController = {
     }
   },
 
-  getDoctorReviews: async (req, res, next) => {
+  getDoctorReviews: async (req, res) => {
     try {
       const reviews = await doctorService.getDoctorReviews(req.params.id);
       sendSuccess(res, "Fetched doctor reviews", reviews);
@@ -297,7 +335,7 @@ export const marketplaceController = {
     }
   },
 
-  getDoctorSlots: async (req, res, next) => {
+  getDoctorSlots: async (req, res) => {
     try {
       const slots = await doctorService.getDoctorSlots(req.params.id);
       sendSuccess(res, "Fetched doctor slots", slots);
@@ -309,7 +347,7 @@ export const marketplaceController = {
 
 // Appointment Controller
 export const appointmentController = {
-  book: async (req, res, next) => {
+  book: async (req, res) => {
     try {
       const { doctorId, doctorName, slotId } = req.body;
       const app = await appointmentService.bookAppointment(
@@ -325,7 +363,7 @@ export const appointmentController = {
     }
   },
 
-  getMyAppointments: async (req, res, next) => {
+  getMyAppointments: async (req, res) => {
     try {
       const list = await appointmentService.getAppointments(req.user.role, req.user._id);
       sendSuccess(res, "Fetched appointments list", list);
@@ -334,7 +372,7 @@ export const appointmentController = {
     }
   },
 
-  cancel: async (req, res, next) => {
+  cancel: async (req, res) => {
     try {
       await appointmentService.cancelAppointment(req.params.id);
       sendSuccess(res, "Appointment cancelled successfully");
@@ -343,10 +381,20 @@ export const appointmentController = {
     }
   },
 
-  complete: async (req, res, next) => {
+  complete: async (req, res) => {
     try {
       await appointmentService.completeAppointment(req.params.id);
       sendSuccess(res, "Appointment completed successfully");
+    } catch (error) {
+      sendError(res, error.message);
+    }
+  },
+
+  reschedule: async (req, res) => {
+    try {
+      const { newSlotId } = req.body;
+      const updatedApp = await appointmentService.rescheduleAppointment(req.params.id, newSlotId);
+      sendSuccess(res, "Appointment rescheduled successfully", updatedApp);
     } catch (error) {
       sendError(res, error.message);
     }
@@ -355,7 +403,7 @@ export const appointmentController = {
 
 // Notification Controller
 export const notificationController = {
-  getNotifications: async (req, res, next) => {
+  getNotifications: async (req, res) => {
     try {
       const list = await notificationService.getNotifications(req.user._id);
       sendSuccess(res, "Fetched notifications list", list);
@@ -364,7 +412,7 @@ export const notificationController = {
     }
   },
 
-  markRead: async (req, res, next) => {
+  markRead: async (req, res) => {
     try {
       const notif = await notificationService.markAsRead(req.params.id);
       sendSuccess(res, "Notification marked as read", notif);
@@ -373,7 +421,7 @@ export const notificationController = {
     }
   },
 
-  markAllRead: async (req, res, next) => {
+  markAllRead: async (req, res) => {
     try {
       await notificationService.markAllAsRead(req.user._id);
       sendSuccess(res, "All notifications marked as read");
@@ -382,7 +430,7 @@ export const notificationController = {
     }
   },
 
-  clearAll: async (req, res, next) => {
+  clearAll: async (req, res) => {
     try {
       await notificationService.clearNotifications(req.user._id);
       sendSuccess(res, "Notifications cleared");
@@ -394,7 +442,7 @@ export const notificationController = {
 
 // Admin Controller
 export const adminController = {
-  getStats: async (req, res, next) => {
+  getStats: async (req, res) => {
     try {
       const stats = await adminService.getAdminStats();
       sendSuccess(res, "Fetched platform stats", stats);
@@ -403,7 +451,7 @@ export const adminController = {
     }
   },
 
-  getVerifications: async (req, res, next) => {
+  getVerifications: async (req, res) => {
     try {
       const verifications = await adminService.getVerifications();
       sendSuccess(res, "Fetched verifications requests", verifications);
@@ -412,7 +460,7 @@ export const adminController = {
     }
   },
 
-  updateVerification: async (req, res, next) => {
+  updateVerification: async (req, res) => {
     try {
       const { status } = req.body;
       const ver = await adminService.updateVerificationStatus(req.params.id, status);
@@ -422,7 +470,7 @@ export const adminController = {
     }
   },
 
-  getPatients: async (req, res, next) => {
+  getPatients: async (req, res) => {
     try {
       const list = await adminService.getPatients();
       sendSuccess(res, "Fetched patients list", list);
@@ -431,7 +479,7 @@ export const adminController = {
     }
   },
 
-  addPatient: async (req, res, next) => {
+  addPatient: async (req, res) => {
     try {
       const patient = await adminService.addPatientByAdmin(req.body);
       sendSuccess(res, "Patient registered successfully", patient);
@@ -440,7 +488,7 @@ export const adminController = {
     }
   },
 
-  updatePatient: async (req, res, next) => {
+  updatePatient: async (req, res) => {
     try {
       const patient = await adminService.updatePatientByAdmin(req.params.id, req.body);
       sendSuccess(res, "Patient profile updated successfully", patient);
@@ -449,7 +497,7 @@ export const adminController = {
     }
   },
 
-  deletePatient: async (req, res, next) => {
+  deletePatient: async (req, res) => {
     try {
       await adminService.deletePatientByAdmin(req.params.id);
       sendSuccess(res, "Patient deleted successfully");
@@ -458,7 +506,7 @@ export const adminController = {
     }
   },
 
-  addDoctor: async (req, res, next) => {
+  addDoctor: async (req, res) => {
     try {
       const doc = await adminService.addDoctorByAdmin(req.body);
       sendSuccess(res, "Doctor registered successfully", doc);
@@ -467,7 +515,7 @@ export const adminController = {
     }
   },
 
-  updateDoctor: async (req, res, next) => {
+  updateDoctor: async (req, res) => {
     try {
       const doc = await adminService.updateDoctorByAdmin(req.params.id, req.body);
       sendSuccess(res, "Doctor profile updated successfully", doc);
@@ -476,7 +524,7 @@ export const adminController = {
     }
   },
 
-  deleteDoctor: async (req, res, next) => {
+  deleteDoctor: async (req, res) => {
     try {
       await adminService.deleteDoctorByAdmin(req.params.id);
       sendSuccess(res, "Doctor profile deleted successfully");
@@ -485,7 +533,7 @@ export const adminController = {
     }
   },
 
-  getLogs: async (req, res, next) => {
+  getLogs: async (req, res) => {
     try {
       const logs = await adminService.getActivityLogs();
       sendSuccess(res, "Fetched system logs", logs);
@@ -494,7 +542,7 @@ export const adminController = {
     }
   },
 
-  clearLogs: async (req, res, next) => {
+  clearLogs: async (req, res) => {
     try {
       await adminService.clearActivityLogs();
       sendSuccess(res, "System logs cleared successfully");
@@ -503,7 +551,7 @@ export const adminController = {
     }
   },
 
-  getAllAppointments: async (req, res, next) => {
+  getAllAppointments: async (req, res) => {
     try {
       const list = await adminService.getAllAppointments();
       sendSuccess(res, "Fetched all appointments", list);
@@ -512,7 +560,7 @@ export const adminController = {
     }
   },
 
-  updateAppointmentStatus: async (req, res, next) => {
+  updateAppointmentStatus: async (req, res) => {
     try {
       const { status } = req.body;
       const app = await adminService.updateAppointmentStatus(req.params.id, status);
@@ -522,7 +570,7 @@ export const adminController = {
     }
   },
 
-  deleteAppointment: async (req, res, next) => {
+  deleteAppointment: async (req, res) => {
     try {
       await adminService.deleteAppointment(req.params.id);
       sendSuccess(res, "Appointment deleted successfully");
@@ -531,7 +579,7 @@ export const adminController = {
     }
   },
 
-  getAllReviews: async (req, res, next) => {
+  getAllReviews: async (req, res) => {
     try {
       const list = await adminService.getAllReviews();
       sendSuccess(res, "Fetched all reviews", list);
@@ -540,7 +588,7 @@ export const adminController = {
     }
   },
 
-  deleteReview: async (req, res, next) => {
+  deleteReview: async (req, res) => {
     try {
       await adminService.deleteReviewByAdmin(req.params.id);
       sendSuccess(res, "Review deleted successfully");

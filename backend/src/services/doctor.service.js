@@ -6,6 +6,7 @@ import { Prescription } from "../models/prescription.model.js";
 import { Appointment } from "../models/appointment.model.js";
 import { Notification } from "../models/notification.model.js";
 import { ActivityLog } from "../models/activityLog.model.js";
+import { DoctorVerification } from "../models/doctorVerification.model.js";
 
 export const getDoctors = async (filters = {}) => {
   const query = {};
@@ -227,5 +228,70 @@ export const getDoctorVerificationStatus = async (userId) => {
   if (!doc) throw new Error("Doctor profile not found");
   return await DoctorVerification.findOne({ doctorId: doc._id });
 };
+
+export const submitVerification = async (userId, license, degree) => {
+  const doc = await Doctor.findOne({ userId });
+  if (!doc) {
+    throw new Error("Doctor profile not found");
+  }
+
+  // Find existing verification request
+  let ver = await DoctorVerification.findOne({ doctorId: doc._id });
+  if (ver) {
+    if (ver.status === "Approved") {
+      throw new Error("Verification request is already approved.");
+    }
+    ver.license = license;
+    ver.degree = degree;
+    ver.status = "Pending"; // reset status on update
+    ver.submittedAt = new Date().toISOString().split("T")[0];
+    await ver.save();
+  } else {
+    ver = await DoctorVerification.create({
+      doctorId: doc._id,
+      doctorName: doc.name,
+      license,
+      degree,
+      status: "Pending",
+      submittedAt: new Date().toISOString().split("T")[0]
+    });
+  }
+
+  // Create an Activity Log entry
+  await ActivityLog.create({
+    timestamp: new Date().toLocaleString(),
+    action: "Doctor Verification Submitted",
+    details: `Doctor ${doc.name} submitted verification details.`
+  });
+
+  return ver;
+};
+
+export const getDoctorStats = async (userId) => {
+  const doc = await Doctor.findOne({ userId });
+  if (!doc) {
+    throw new Error("Doctor profile not found");
+  }
+
+  const doctorName = doc.name;
+
+  const totalAppointments = await Appointment.countDocuments({ doctorId: userId });
+  const bookedAppointments = await Appointment.countDocuments({ doctorId: userId, status: "Booked" });
+  const completedAppointments = await Appointment.countDocuments({ doctorId: userId, status: "Completed" });
+  const cancelledAppointments = await Appointment.countDocuments({ doctorId: userId, status: "Cancelled" });
+
+  const totalPrescriptions = await Prescription.countDocuments({ doctorName });
+
+  return {
+    totalAppointments,
+    bookedAppointments,
+    completedAppointments,
+    cancelledAppointments,
+    totalPrescriptions,
+    rating: doc.rating,
+    reviewsCount: doc.reviewsCount
+  };
+};
+
 
 

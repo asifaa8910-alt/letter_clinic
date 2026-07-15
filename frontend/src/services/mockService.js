@@ -371,5 +371,30 @@ export const mockService = {
       reply = "I see. As an AI assistant, I recommend booking a consultation with one of our verified clinical specialists for accurate diagnoses. Would you like me to guide you on how to book an appointment?";
     }
     return reply;
+  },
+
+  rescheduleAppointment: async (appointmentId, newSlotId) => {
+    const res = await API.put(`/appointments/${appointmentId}/reschedule`, { newSlotId });
+    return mapId(res.data.data);
+  },
+
+  submitVerification: async (license, degree) => {
+    const res = await API.post("/doctor/verification/submit", { license, degree });
+    return mapId(res.data.data);
+  },
+
+  updateReminder: async (id, reminderData) => {
+    const res = await API.put(`/patient/reminders/${id}`, reminderData);
+    return mapId(res.data.data);
+  },
+
+  getDoctorStats: async () => {
+    const res = await API.get("/doctor/stats");
+    return mapId(res.data.data);
+  },
+
+  getPatientStats: async () => {
+    const res = await API.get("/patient/stats");
+    return mapId(res.data.data);
   }
 };

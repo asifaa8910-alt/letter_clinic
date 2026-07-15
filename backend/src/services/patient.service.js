@@ -2,6 +2,8 @@ import { User } from "../models/user.model.js";
 import { Patient } from "../models/patient.model.js";
 import { SymptomReport } from "../models/symptomReport.model.js";
 import { ActivityLog } from "../models/activityLog.model.js";
+import { Reminder } from "../models/reminder.model.js";
+import { Appointment } from "../models/appointment.model.js";
 
 // AI Triage Rules
 const SYMPTOM_RULES = [
@@ -146,4 +148,56 @@ export const toggleReminder = async (id, userId) => {
 export const deleteReminder = async (id, userId) => {
   return await Reminder.deleteOne({ _id: id, userId });
 };
+
+export const updateReminder = async (reminderId, userId, updateFields) => {
+  const reminder = await Reminder.findOne({ _id: reminderId, userId });
+  if (!reminder) {
+    throw new Error("Reminder not found");
+  }
+
+  // ponytail: Reminder stores medicine data packed into a single `message` string.
+  // Parsing it back out with regex is fragile. Upgrade path: add medicineName/dosage/frequency
+  // as real fields on the Reminder schema and drop the packed message format.
+  // Format is "medicineName (dosage) - frequency"
+  let medicineName = "";
+  let dosage = "";
+  let frequency = "";
+
+  const match = reminder.message.match(/^(.*?)\s*\((.*?)\)\s*-\s*(.*)$/);
+  if (match) {
+    medicineName = match[1];
+    dosage = match[2];
+    frequency = match[3];
+  } else {
+    medicineName = reminder.message;
+  }
+
+  // Override with updated fields if provided
+  if (updateFields.medicineName !== undefined) medicineName = updateFields.medicineName;
+  if (updateFields.dosage !== undefined) dosage = updateFields.dosage;
+  if (updateFields.frequency !== undefined) frequency = updateFields.frequency;
+
+  if (updateFields.time !== undefined) {
+    reminder.time = updateFields.time;
+  }
+
+  reminder.message = `${medicineName} (${dosage}) - ${frequency}`;
+  await reminder.save();
+  return reminder;
+};
+
+export const getPatientStats = async (userId) => {
+  const upcomingAppointments = await Appointment.countDocuments({ patientId: userId, status: "Booked" });
+  const completedAppointments = await Appointment.countDocuments({ patientId: userId, status: "Completed" });
+  const activeReminders = await Reminder.countDocuments({ userId, active: true });
+  const totalSymptomReports = await SymptomReport.countDocuments({ userId });
+
+  return {
+    upcomingAppointments,
+    completedAppointments,
+    activeReminders,
+    totalSymptomReports
+  };
+};
+
 
