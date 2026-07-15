@@ -1,56 +1,86 @@
-pipeline{
+pipeline {
     agent any
-    stages{
-        stage ('Checkout'){
-            steps{
+
+    environment {
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
                 git branch: 'main',
-                url: 'https://github.com/asifaa8910-alt/letter_clinic.git'
+                    url: 'https://github.com/asifaa8910-alt/letter_clinic.git'
             }
         }
-        stage('Install Backend Dependencies'){
-            steps{
-               dir('backend'){
-                sh 'npm install'
-               }
+
+        stage('Verify Environment') {
+            steps {
+                sh 'echo "PATH=$PATH"'
+                sh 'which node'
+                sh 'node --version'
+                sh 'which npm'
+                sh 'npm --version'
+                sh 'docker --version'
+                sh 'docker compose version'
             }
         }
-        stage(' Install Frontend Dependencies'){
-            steps{
-                dir('frontend'){
+
+        stage('Install Backend Dependencies') {
+            steps {
+                dir('backend') {
                     sh 'npm install'
                 }
             }
         }
-        stage('Build Frontend'){
-            steps{
-                dir('frontend'){
+
+        stage('Install Frontend Dependencies') {
+            steps {
+                dir('frontend') {
+                    sh 'npm install'
+                }
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                dir('frontend') {
                     sh 'npm run build'
                 }
             }
         }
-        stage('Build Docker Images'){
-            steps{
+
+        stage('Build Docker Images') {
+            steps {
                 sh 'docker compose build'
             }
         }
-        stage('Deploy Containers'){
-            steps{
+
+        stage('Deploy Containers') {
+            steps {
                 sh 'docker compose down || true'
                 sh 'docker compose up -d'
             }
         }
-        stage('Verify Deployment'){
-            steps{
+
+        stage('Verify Deployment') {
+            steps {
                 sh 'docker ps'
             }
         }
     }
-    post{
-        success{
-            echo' Deployment Sucessfully!'
+
+    post {
+        success {
+            echo 'Deployment Successfully!'
         }
-        failure{
-            echo 'Deployemnt Failed!'
+
+        failure {
+            echo 'Deployment Failed!'
         }
-}
+
+        always {
+            cleanWs()
+        }
+    }
 }
