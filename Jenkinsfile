@@ -67,12 +67,17 @@ NODE_ENV=development
             }
         }
 
-        stage('Deploy Containers') {
-            steps {
-                sh 'docker compose down || true'
-                sh 'docker compose up -d'
-            }
-        }
+      stage('Deploy Containers') {
+    steps {
+        sh '''
+        docker compose down || true
+
+        docker rm -f letterclinic_mongodb letterclinic_frontend letter_clinicbackend 2>/dev/null || true
+
+        docker compose up -d
+        '''
+    }
+}
 
         stage('Verify Deployment') {
             steps {
