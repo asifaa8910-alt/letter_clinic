@@ -49,6 +49,17 @@ pipeline {
                 }
             }
         }
+        stage('Create Backend .env') {
+    steps {
+        writeFile file: 'backend/.env', text: '''
+PORT=5050
+MONGODB_URI=mongodb://mongodb:27017/letter_clinic
+JWT_SECRET=super_secret_key_for_letter_clinic_2026
+JWT_EXPIRES_IN=7d
+NODE_ENV=development
+'''
+    }
+}
 
         stage('Build Docker Images') {
             steps {
