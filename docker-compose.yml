@@ -1,32 +1,16 @@
-version: "3.9"
 services:
-  mongodb:
-    image: mongo:latest
-    container_name: letterclinic_mongodb
-    restart: always
-    ports:
-      - "27017:27017"
-    volumes: 
-        - mongo-data:/data/db
-
   backend:
     build: ./backend
     container_name: letter_clinicbackend
     ports:
-    - "5050:5050"
+      - "5050:5050"
     env_file:
       - ./backend/.env
-    depends_on:
-      - mongodb
 
   frontend:
     build: ./frontend    
     container_name: letterclinic_frontend
     ports:
-     - "5173:5173"
+      - "5173:5173"
     depends_on:
       - backend
-
-volumes:
-  mongo-data:
- 
