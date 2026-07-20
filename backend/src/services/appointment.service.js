@@ -1,5 +1,6 @@
 import { Appointment } from "../models/appointment.model.js";
 import { Slot } from "../models/slot.model.js";
+import { Doctor } from "../models/doctor.model.js";
 import { ActivityLog } from "../models/activityLog.model.js";
 import { Notification } from "../models/notification.model.js";
 
@@ -9,14 +10,21 @@ export const bookAppointment = async (patientId, patientName, doctorId, doctorNa
     throw new Error("Selected slot is no longer available.");
   }
 
+  // Look up doctor to get their User ID if doctorId is the Doctor document ID
+  const doctor = await Doctor.findOne({ $or: [{ userId: doctorId }, { _id: doctorId }] });
+  if (!doctor) {
+    throw new Error("Doctor not found.");
+  }
+  const doctorUserId = doctor.userId;
+
   slot.available = false;
   await slot.save();
 
   const appointment = await Appointment.create({
     patientId,
     patientName,
-    doctorId,
-    doctorName,
+    doctorId: doctorUserId,
+    doctorName: doctor.name,
     slotDate: slot.date,
     slotTime: slot.time,
     status: "Booked",

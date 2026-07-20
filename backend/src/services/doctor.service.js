@@ -75,8 +75,10 @@ export const updateDoctorProfile = async (userId, data) => {
 };
 
 // Slots
-export const getDoctorSlots = async (doctorId) => {
-  return await Slot.find({ doctorId });
+export const getDoctorSlots = async (id) => {
+  const doc = await Doctor.findOne({ $or: [{ userId: id }, { _id: id }] });
+  if (!doc) return [];
+  return await Slot.find({ doctorId: doc.userId });
 };
 
 export const addDoctorSlot = async (doctorId, date, time) => {
@@ -88,8 +90,10 @@ export const deleteDoctorSlot = async (slotId) => {
 };
 
 // Reviews
-export const getDoctorReviews = async (doctorId) => {
-  return await Review.find({ doctorId });
+export const getDoctorReviews = async (id) => {
+  const doc = await Doctor.findOne({ $or: [{ userId: id }, { _id: id }] });
+  if (!doc) return [];
+  return await Review.find({ doctorId: doc.userId });
 };
 
 // Prescriptions

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { mockService } from "../../services/mockService";
 import PatientOverview from "./components/PatientOverview";
 import PatientTriage from "./components/PatientTriage";
@@ -6,7 +7,19 @@ import PatientMarketplace from "./components/PatientMarketplace";
 import PatientProfile from "./components/PatientProfile";
 
 export default function PatientDashboard({ user, onProfileUpdate }) {
-  const [activeTab, setActiveTab] = useState("overview"); // overview, triage, marketplace, profile
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Determine active tab from path
+  let activeTab = "overview";
+  if (location.pathname.includes("/triage")) activeTab = "triage";
+  else if (location.pathname.includes("/marketplace")) activeTab = "marketplace";
+  else if (location.pathname.includes("/profile")) activeTab = "profile";
+
+  const setActiveTab = (tabName) => {
+    if (tabName === "overview") navigate("/patient");
+    else navigate(`/patient/${tabName}`);
+  };
   const [appointments, setAppointments] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
   const [toastMsg, setToastMsg] = useState("");
@@ -96,12 +109,12 @@ export default function PatientDashboard({ user, onProfileUpdate }) {
   }, [refreshData]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const tab = params.get("tab");
     if (tab && ["overview", "triage", "marketplace"].includes(tab)) {
       setActiveTab(tab);
     }
-  }, []);
+  }, [location.search]);
 
   const showToast = (msg) => {
     setToastMsg(msg);

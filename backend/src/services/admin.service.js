@@ -87,20 +87,30 @@ export const addPatientByAdmin = async (patientData) => {
 };
 
 export const updatePatientByAdmin = async (id, patientData) => {
-  const user = await User.findById(id);
-  if (!user) throw new Error("Patient not found");
+  const patient = await Patient.findOne({ $or: [{ userId: id }, { _id: id }] });
+  if (!patient) {
+    const user = await User.findById(id);
+    if (!user) throw new Error("Patient not found");
+    const newPat = await Patient.create({ userId: user._id, name: user.name, email: user.email });
+    return updatePatientByAdmin(newPat._id, patientData);
+  }
+
+  const userId = patient.userId;
+  const user = await User.findById(userId);
+  if (!user) throw new Error("Patient credentials not found");
 
   if (patientData.email) {
     const existing = await User.findOne({ email: patientData.email });
-    if (existing && existing._id.toString() !== id.toString()) {
+    if (existing && existing._id.toString() !== userId.toString()) {
       throw new Error("Email already in use by another user");
     }
     user.email = patientData.email;
+    patient.email = patientData.email;
   }
 
   if (patientData.name) {
     user.name = patientData.name;
-    await Patient.findOneAndUpdate({ userId: id }, { name: patientData.name, email: patientData.email });
+    patient.name = patientData.name;
   }
 
   if (patientData.password) {
@@ -108,28 +118,37 @@ export const updatePatientByAdmin = async (id, patientData) => {
   }
 
   await user.save();
+  await patient.save();
 
   await ActivityLog.create({
     timestamp: new Date().toLocaleString(),
     action: "Patient Updated",
-    details: `Admin updated patient profile for ${patientData.name || user.name}`
+    details: `Admin updated patient profile for ${patient.name}`
   });
 
   return user;
 };
 
 export const deletePatientByAdmin = async (id) => {
-  const user = await User.findById(id);
-  if (!user) throw new Error("Patient not found");
+  const patient = await Patient.findOne({ $or: [{ userId: id }, { _id: id }] });
+  if (!patient) {
+    const user = await User.findById(id);
+    if (user) {
+      await User.findByIdAndDelete(id);
+      await Appointment.deleteMany({ patientId: id });
+    }
+    return;
+  }
 
-  await User.findByIdAndDelete(id);
-  await Patient.findOneAndDelete({ userId: id });
-  await Appointment.deleteMany({ patientId: id });
+  const userId = patient.userId;
+  await User.findByIdAndDelete(userId);
+  await Patient.findByIdAndDelete(patient._id);
+  await Appointment.deleteMany({ patientId: userId });
 
   await ActivityLog.create({
     timestamp: new Date().toLocaleString(),
     action: "Patient Deleted",
-    details: `Admin deleted patient profile for ${user.name}`
+    details: `Admin deleted patient profile for ${patient.name}`
   });
 };
 
@@ -179,12 +198,16 @@ export const addDoctorByAdmin = async (doctorData) => {
 };
 
 export const updateDoctorByAdmin = async (id, doctorData) => {
-  const user = await User.findById(id);
-  if (!user) throw new Error("Doctor profile not found");
+  const doctor = await Doctor.findOne({ $or: [{ userId: id }, { _id: id }] });
+  if (!doctor) throw new Error("Doctor profile not found");
+
+  const userId = doctor.userId;
+  const user = await User.findById(userId);
+  if (!user) throw new Error("Doctor credentials not found");
 
   if (doctorData.email) {
     const existing = await User.findOne({ email: doctorData.email });
-    if (existing && existing._id.toString() !== id.toString()) {
+    if (existing && existing._id.toString() !== userId.toString()) {
       throw new Error("Email already in use by another user");
     }
     user.email = doctorData.email;
@@ -200,19 +223,15 @@ export const updateDoctorByAdmin = async (id, doctorData) => {
 
   await user.save();
 
-  const doctor = await Doctor.findOneAndUpdate(
-    { userId: id },
-    {
-      name: doctorData.name,
-      specialty: doctorData.specialty,
-      experience: Number(doctorData.experience),
-      fee: Number(doctorData.fee),
-      hospital: doctorData.hospital,
-      verified: doctorData.verified,
-      bio: doctorData.bio
-    },
-    { new: true }
-  );
+  // update doctor document
+  doctor.name = doctorData.name || doctor.name;
+  doctor.specialty = doctorData.specialty || doctor.specialty;
+  doctor.experience = doctorData.experience !== undefined ? Number(doctorData.experience) : doctor.experience;
+  doctor.fee = doctorData.fee !== undefined ? Number(doctorData.fee) : doctor.fee;
+  doctor.hospital = doctorData.hospital || doctor.hospital;
+  doctor.verified = doctorData.verified !== undefined ? doctorData.verified : doctor.verified;
+  doctor.bio = doctorData.bio || doctor.bio;
+  await doctor.save();
 
   if (doctorData.verified) {
     await DoctorVerification.findOneAndUpdate({ doctorId: doctor._id }, { status: "Approved" });
@@ -221,30 +240,29 @@ export const updateDoctorByAdmin = async (id, doctorData) => {
   await ActivityLog.create({
     timestamp: new Date().toLocaleString(),
     action: "Doctor Updated",
-    details: `Admin updated doctor profile for ${doctorData.name}`
+    details: `Admin updated doctor profile for ${doctor.name}`
   });
 
   return doctor;
 };
 
 export const deleteDoctorByAdmin = async (id) => {
-  const user = await User.findById(id);
-  if (!user) throw new Error("Doctor not found");
+  const doctor = await Doctor.findOne({ $or: [{ userId: id }, { _id: id }] });
+  if (!doctor) throw new Error("Doctor profile not found");
+  
+  const userId = doctor.userId;
+  const doctorName = doctor.name;
 
-  const doctor = await Doctor.findOne({ userId: id });
-  if (doctor) {
-    await DoctorVerification.findOneAndDelete({ doctorId: doctor._id });
-    await Doctor.findByIdAndDelete(doctor._id);
-  }
-
-  await User.findByIdAndDelete(id);
-  await Slot.deleteMany({ doctorId: id });
-  await Appointment.deleteMany({ doctorId: id });
+  await DoctorVerification.findOneAndDelete({ doctorId: doctor._id });
+  await Doctor.findByIdAndDelete(doctor._id);
+  await User.findByIdAndDelete(userId);
+  await Slot.deleteMany({ doctorId: userId });
+  await Appointment.deleteMany({ doctorId: userId });
 
   await ActivityLog.create({
     timestamp: new Date().toLocaleString(),
     action: "Doctor Deleted",
-    details: `Admin deleted doctor profile for ${user.name}`
+    details: `Admin deleted doctor profile for ${doctorName}`
   });
 };
 

@@ -10,7 +10,12 @@ const app = express();
 // Standard Security & Body Parsing Middlewares
 app.use(helmet());
 app.use(cors({
-  origin: "http://localhost:5173", // default Vite dev server port
+  origin: function (origin, callback) {
+    if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'), false);
+  },
   credentials: true
 }));
 app.use(morgan("dev"));

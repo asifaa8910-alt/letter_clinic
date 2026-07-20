@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { mockService } from "../../services/mockService";
 import { RefreshCw } from "lucide-react";
 import AdminOverview from "./components/AdminOverview";
@@ -7,7 +8,19 @@ import AdminPatients from "./components/AdminPatients";
 import AdminLogs from "./components/AdminLogs";
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState("overview"); // overview, doctors, patients, logs
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Determine active tab from path
+  let activeTab = "overview";
+  if (location.pathname.includes("/doctors")) activeTab = "doctors";
+  else if (location.pathname.includes("/patients")) activeTab = "patients";
+  else if (location.pathname.includes("/logs")) activeTab = "logs";
+
+  const setActiveTab = (tabName) => {
+    if (tabName === "overview") navigate("/admin");
+    else navigate(`/admin/${tabName}`);
+  };
   const [stats, setStats] = useState(null);
   const [verifications, setVerifications] = useState([]);
   const [doctors, setDoctors] = useState([]);

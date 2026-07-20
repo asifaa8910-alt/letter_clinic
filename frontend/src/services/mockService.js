@@ -82,7 +82,10 @@ export const mockService = {
 
   getDoctorById: async (id) => {
     const res = await API.get("/marketplace/doctors");
-    const doc = res.data.data.find(d => d.userId === id || d._id === id);
+    const doc = res.data.data.find(d => {
+      const uId = d.userId && typeof d.userId === "object" ? d.userId._id : d.userId;
+      return uId === id || d._id === id;
+    });
     return mapId(doc);
   },
 

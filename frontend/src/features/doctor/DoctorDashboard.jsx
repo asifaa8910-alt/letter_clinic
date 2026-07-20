@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { mockService } from "../../services/mockService";
 import DoctorOverview from "./components/DoctorOverview";
 import DoctorSlots from "./components/DoctorSlots";
@@ -7,7 +8,19 @@ import DoctorProfile from "./components/DoctorProfile";
 import PrescriptionFormModal from "./components/PrescriptionFormModal";
 
 export default function DoctorDashboard({ user, onProfileUpdate }) {
-  const [activeTab, setActiveTab] = useState("overview"); // overview, slots, reviews, profile
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Determine active tab from path
+  let activeTab = "overview";
+  if (location.pathname.includes("/slots")) activeTab = "slots";
+  else if (location.pathname.includes("/reviews")) activeTab = "reviews";
+  else if (location.pathname.includes("/profile")) activeTab = "profile";
+
+  const setActiveTab = (tabName) => {
+    if (tabName === "overview") navigate("/doctor");
+    else navigate(`/doctor/${tabName}`);
+  };
   const [slots, setSlots] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [reviews, setReviews] = useState([]);
