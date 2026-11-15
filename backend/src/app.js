@@ -11,10 +11,15 @@ const app = express();
 app.use(helmet());
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+    if (
+      !origin ||
+      /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+      /\.vercel\.app$/.test(origin) ||
+      process.env.CLIENT_URL === origin
+    ) {
       return callback(null, true);
     }
-    return callback(new Error('Not allowed by CORS'), false);
+    return callback(new Error(`Not allowed by CORS: ${origin}`), false);
   },
   credentials: true
 }));
