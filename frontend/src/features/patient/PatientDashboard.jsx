@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { mockService } from "../../services/mockService";
+import { useAuth } from "../../context/AuthContext";
+import { apiService } from "../../services/apiService";
 import PatientOverview from "./components/PatientOverview";
 import PatientTriage from "./components/PatientTriage";
 import PatientMarketplace from "./components/PatientMarketplace";
 import PatientProfile from "./components/PatientProfile";
+import VideoConsultationModal from "../../components/VideoConsultationModal";
+import PrescriptionViewModal from "../../components/PrescriptionViewModal";
+import Toast from "../../components/Toast";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
-export default function PatientDashboard({ user, onProfileUpdate }) {
+export default function PatientDashboard() {
+  const { user, updateUser } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -20,14 +26,21 @@ export default function PatientDashboard({ user, onProfileUpdate }) {
     if (tabName === "overview") navigate("/patient");
     else navigate(`/patient/${tabName}`);
   };
+
   const [appointments, setAppointments] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
+  const [reminders, setReminders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [toastMsg, setToastMsg] = useState("");
+  const [toastType, setToastType] = useState("success");
 
-  // Patient Profile state
+  // Profile Form state
   const [profileName, setProfileName] = useState(user?.name || "");
   const [profileEmail, setProfileEmail] = useState(user?.email || "");
   const [profilePassword, setProfilePassword] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileBloodGroup, setProfileBloodGroup] = useState("O+");
+  const [profileMedicalHistory, setProfileMedicalHistory] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -62,44 +75,31 @@ export default function PatientDashboard({ user, onProfileUpdate }) {
   const [viewReviewsDoc, setViewReviewsDoc] = useState(null);
   const [docReviews, setDocReviews] = useState([]);
 
-  const handleViewReviews = async (doc) => {
-    setViewReviewsDoc(doc);
-    try {
-      const data = await mockService.getReviews(doc.id);
-      setDocReviews(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  // Prescription View Modal State
+  const [selectedPrescription, setSelectedPrescription] = useState(null);
 
-  const handleSaveProfile = async (e) => {
-    e.preventDefault();
-    try {
-      const updatedUser = await mockService.updatePatientProfile(user.id, {
-        name: profileName,
-        email: profileEmail,
-        password: profilePassword || undefined
-      });
-      localStorage.setItem("currentUser", JSON.stringify(updatedUser));
-      showToast("Profile details updated successfully.");
-      setProfilePassword("");
-      if (onProfileUpdate) onProfileUpdate();
-    } catch (err) {
-      alert(err.message);
-    }
+  const showToast = (msg, type = "success") => {
+    setToastMsg(msg);
+    setToastType(type);
   };
 
   const refreshData = useCallback(async () => {
     if (user) {
       try {
-        const apps = await mockService.getAppointments("patient", user.id);
-        const rx = await mockService.getPrescriptions(user.id);
-        const docs = await mockService.getDoctors();
-        setAppointments(apps);
-        setPrescriptions(rx);
-        setDoctorsList(docs);
+        const [apps, rx, docs, rems] = await Promise.all([
+          apiService.getAppointments("patient", user.id),
+          apiService.getPrescriptions(),
+          apiService.getDoctors(),
+          apiService.getReminders()
+        ]);
+        setAppointments(apps || []);
+        setPrescriptions(rx || []);
+        setDoctorsList(docs || []);
+        setReminders(rems || []);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to load patient data:", err.message);
+      } finally {
+        setLoading(false);
       }
     }
   }, [user]);
@@ -108,29 +108,55 @@ export default function PatientDashboard({ user, onProfileUpdate }) {
     refreshData();
   }, [refreshData]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const tab = params.get("tab");
-    if (tab && ["overview", "triage", "marketplace"].includes(tab)) {
-      setActiveTab(tab);
+  // Handle saving patient profile
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    try {
+      const updatedUser = await apiService.updatePatientProfile(user.id, {
+        name: profileName,
+        email: profileEmail,
+        password: profilePassword || undefined,
+        phone: profilePhone,
+        bloodGroup: profileBloodGroup,
+        medicalHistory: profileMedicalHistory
+      });
+      updateUser(updatedUser);
+      showToast("Profile details updated successfully.");
+      setProfilePassword("");
+    } catch (err) {
+      showToast(err.message || "Failed to update profile", "error");
     }
-  }, [location.search]);
-
-  const showToast = (msg) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 4000);
   };
 
+  // AI Triage Submission
   const handleTriageSubmit = async (e) => {
     e.preventDefault();
-    if (!symptoms.trim()) return;
+    if (!symptoms.trim()) {
+      showToast("Please describe your symptoms", "error");
+      return;
+    }
     try {
-      const report = await mockService.analyzeSymptoms(age, gender, symptoms, duration, severity);
+      const report = await apiService.analyzeSymptoms(age, gender, symptoms, duration, severity);
       setTriageReport(report);
       showToast("Symptoms evaluated successfully by AI");
       setSpecialty(report.suggestedSpecialist);
     } catch (err) {
-      alert(err.message);
+      showToast(err.message || "Triage evaluation failed", "error");
+    }
+  };
+
+  // Marketplace Doctor Filter
+  const filterDocs = async (srch, spec, maxFee) => {
+    try {
+      const list = await apiService.getDoctors({
+        search: srch,
+        specialty: spec,
+        maxFee: maxFee ? Number(maxFee) : null,
+        onlyVerified: true
+      });
+      setDoctorsList(list || []);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -149,93 +175,140 @@ export default function PatientDashboard({ user, onProfileUpdate }) {
     filterDocs(search, specialty, e.target.value);
   };
 
-  const filterDocs = async (srch, spec, maxFee) => {
-    try {
-      const list = await mockService.getDoctors({
-        search: srch,
-        specialty: spec,
-        maxFee: maxFee ? Number(maxFee) : null,
-        onlyVerified: true
-      });
-      setDoctorsList(list);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const loadSlots = async (doc) => {
     setSelectedDoc(doc);
     try {
-      const slots = await mockService.getSlots(doc.id);
+      const slots = await apiService.getSlots(doc.id);
       setSelectedDoctorSlots(slots);
     } catch (err) {
-      console.error(err);
+      showToast(err.message || "Unable to load slots", "error");
     }
   };
 
   const handleBook = async (slotId) => {
     try {
-      await mockService.bookAppointment(user.id, user.name, selectedDoc.id, selectedDoc.name, slotId);
+      await apiService.bookAppointment(user.id, user.name, selectedDoc.id, selectedDoc.name, slotId);
       showToast(`Appointment booked successfully with ${selectedDoc.name}`);
       setSelectedDoctorSlots(null);
       setSelectedDoc(null);
       await refreshData();
       setActiveTab("overview");
     } catch (err) {
-      alert(err.message);
+      showToast(err.message || "Booking failed", "error");
     }
   };
 
   const handleCancelAppointment = async (id) => {
+    if (!window.confirm("Are you sure you want to cancel this appointment?")) return;
     try {
-      await mockService.cancelAppointment(id);
+      await apiService.cancelAppointment(id);
       showToast("Appointment cancelled successfully");
       await refreshData();
     } catch (err) {
-      console.error(err);
+      showToast(err.message || "Cancel failed", "error");
     }
   };
 
+  // Join Live Consultation
   const handleJoinConsultation = (app) => {
     setActiveConsultation(app);
   };
 
+  // End Live Consultation
   const handleEndConsultation = async (appId) => {
     try {
-      await mockService.completeAppointment(appId);
+      await apiService.completeAppointment(appId);
       showToast("Consultation completed!");
-      const docId = activeConsultation.doctorId;
+    } catch (err) {
+      console.warn("Complete appointment note:", err.message);
+    } finally {
+      const docId = activeConsultation?.doctorId;
       setActiveConsultation(null);
       setReviewDoctorId(docId);
       await refreshData();
-    } catch (err) {
-      console.error(err);
     }
   };
 
+  // Submit Feedback / Review
   const submitReview = async (e) => {
     e.preventDefault();
+    if (!reviewComment.trim()) {
+      showToast("Please provide feedback comments", "error");
+      return;
+    }
     try {
-      await mockService.addReview(reviewDoctorId, user.name, reviewRating, reviewComment);
-      showToast("Thank you for your feedback!");
+      await apiService.addReview(reviewDoctorId, user.name, Number(reviewRating), reviewComment);
+      showToast("Thank you for your feedback! Review published.");
       setReviewDoctorId(null);
       setReviewComment("");
       await refreshData();
     } catch (err) {
+      showToast(err.message || "Review submission failed", "error");
+    }
+  };
+
+  const handleViewReviews = async (doc) => {
+    setViewReviewsDoc(doc);
+    try {
+      const data = await apiService.getReviews(doc.id);
+      setDocReviews(data || []);
+    } catch (err) {
       console.error(err);
     }
   };
 
+  const handleToggleReminder = async (remId) => {
+    try {
+      await apiService.toggleReminder(remId);
+      const updatedRems = await apiService.getReminders();
+      setReminders(updatedRems || []);
+      showToast("Medication reminder updated");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
+  if (loading) {
+    return <LoadingSpinner message="Loading patient portal..." />;
+  }
+
   return (
-    <div className="container" style={{ padding: "40px 24px" }}>
-      {toastMsg && <div className="toast">✓ {toastMsg}</div>}
+    <div className="container py-4">
+      {/* Toast Alert */}
+      <Toast message={toastMsg} type={toastType} onClose={() => setToastMsg("")} />
 
       {/* Dashboard Sub-navigation Tabs */}
-      <div style={{ display: "flex", gap: "12px", borderBottom: "1px solid rgba(0,0,0,0.08)", paddingBottom: "16px", marginBottom: "32px", overflowX: "auto" }}>
-        <button onClick={() => { setActiveTab("overview"); refreshData(); }} className={`btn ${activeTab === "overview" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>Overview</button>
-        <button onClick={() => setActiveTab("triage")} className={`btn ${activeTab === "triage" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>AI Symptom Triage</button>
-        <button onClick={() => { setActiveTab("marketplace"); refreshData(); }} className={`btn ${activeTab === "marketplace" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>Find Doctors</button>
-        <button onClick={() => setActiveTab("profile")} className={`btn ${activeTab === "profile" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>My Profile</button>
+      <div className="d-flex gap-2 border-bottom pb-3 mb-4 overflow-x-auto">
+        <button
+          onClick={() => {
+            setActiveTab("overview");
+            refreshData();
+          }}
+          className={`btn ${activeTab === "overview" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          Overview
+        </button>
+        <button
+          onClick={() => setActiveTab("triage")}
+          className={`btn ${activeTab === "triage" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          AI Symptom Triage
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("marketplace");
+            refreshData();
+          }}
+          className={`btn ${activeTab === "marketplace" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          Find Doctors
+        </button>
+        <button
+          onClick={() => setActiveTab("profile")}
+          className={`btn ${activeTab === "profile" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          My Profile & Vitals
+        </button>
       </div>
 
       {/* Tab Content 1: Overview */}
@@ -244,8 +317,11 @@ export default function PatientDashboard({ user, onProfileUpdate }) {
           user={user}
           appointments={appointments}
           prescriptions={prescriptions}
+          reminders={reminders}
           handleJoinConsultation={handleJoinConsultation}
           handleCancelAppointment={handleCancelAppointment}
+          handleViewPrescription={(rx) => setSelectedPrescription(rx)}
+          handleToggleReminder={handleToggleReminder}
           setActiveTab={setActiveTab}
         />
       )}
@@ -302,76 +378,93 @@ export default function PatientDashboard({ user, onProfileUpdate }) {
           setProfileEmail={setProfileEmail}
           profilePassword={profilePassword}
           setProfilePassword={setProfilePassword}
+          profilePhone={profilePhone}
+          setProfilePhone={setProfilePhone}
+          profileBloodGroup={profileBloodGroup}
+          setProfileBloodGroup={setProfileBloodGroup}
+          profileMedicalHistory={profileMedicalHistory}
+          setProfileMedicalHistory={setProfileMedicalHistory}
           handleSaveProfile={handleSaveProfile}
         />
       )}
 
-      {/* Simulated Live Video Consultation View */}
+      {/* Interactive WebRTC Video Consultation Room */}
       {activeConsultation && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "var(--color-obsidian)", display: "flex", flexDirection: "column", zIndex: 2000 }}>
-          <div style={{ padding: "20px", display: "flex", justifyContent: "space-between", color: "white" }}>
-            <span>Live Consultation with {activeConsultation.doctorName}</span>
-            <span style={{ background: "rgba(255,255,255,0.2)", padding: "4px 10px", borderRadius: "100px", fontSize: "12px" }}>Room ID: {activeConsultation.videoRoomId}</span>
-          </div>
-
-          <div style={{ flex: 1, display: "flex", gap: "20px", padding: "20px", overflow: "hidden" }}>
-            <div style={{ flex: 2, background: "#1c1c24", borderRadius: "16px", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ textAlign: "center", color: "white" }}>
-                <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--color-surgical-blue)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: "16px", fontSize: "24px" }}>
-                  {activeConsultation.doctorName.charAt(4)}
-                </div>
-                <h3>{activeConsultation.doctorName}</h3>
-                <p style={{ color: "var(--color-slate)" }}>Connected (Audio/Video active)</p>
-              </div>
-            </div>
-
-            <div style={{ width: "240px", background: "#2a2a35", borderRadius: "16px", padding: "20px", display: "flex", alignItems: "center", justifyContent: "center", color: "white" }}>
-              <div style={{ textAlign: "center" }}>
-                <p>You ({user?.name})</p>
-                <span style={{ fontSize: "11px", color: "green" }}>● Streaming</span>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ padding: "30px", display: "flex", justifyContent: "center", gap: "20px", background: "#111" }}>
-            <button onClick={() => handleEndConsultation(activeConsultation.id)} className="btn" style={{ background: "#b91c1c", color: "white", padding: "12px 30px", borderRadius: "100px" }}>
-              End Consultation
-            </button>
-          </div>
-        </div>
+        <VideoConsultationModal
+          appointment={activeConsultation}
+          currentUser={user}
+          onEndCall={handleEndConsultation}
+        />
       )}
 
-      {/* Review Dialog */}
+      {/* Printable E-Prescription Letterhead Modal */}
+      {selectedPrescription && (
+        <PrescriptionViewModal
+          prescription={selectedPrescription}
+          onClose={() => setSelectedPrescription(null)}
+        />
+      )}
+
+      {/* Post-Consultation Doctor Review Dialog */}
       {reviewDoctorId && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(7,7,9,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div className="card" style={{ width: "100%", maxWidth: "440px", margin: "20px" }}>
-            <h3 style={{ fontSize: "20px", marginBottom: "8px" }}>Consultation Feedback</h3>
-            <p style={{ fontSize: "13px", marginBottom: "20px" }}>How was your experience? Rate and review the doctor.</p>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(7,7,9,0.5)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "16px"
+          }}
+        >
+          <div className="card shadow-lg border-0 rounded-4 p-4" style={{ maxWidth: "460px", width: "100%" }}>
+            <h4 className="fw-bold mb-1">Consultation Feedback</h4>
+            <p className="small text-secondary mb-3">How was your telemedicine experience with the doctor?</p>
             <form onSubmit={submitReview}>
-              <div className="input-group">
-                <label className="label">Rating (1 to 5 Stars)</label>
-                <select className="select" value={reviewRating} onChange={(e) => setReviewRating(e.target.value)}>
-                  <option value={5}>⭐⭐⭐⭐⭐ (Excellent)</option>
-                  <option value={4}>⭐⭐⭐⭐ (Very Good)</option>
-                  <option value={3}>⭐⭐⭐ (Satisfactory)</option>
-                  <option value={2}>⭐⭐ (Needs Improvement)</option>
-                  <option value={1}>⭐ (Poor)</option>
+              <div className="mb-3">
+                <label className="form-label small fw-semibold">Rating (1 to 5 Stars)</label>
+                <select
+                  className="form-select"
+                  value={reviewRating}
+                  onChange={(e) => setReviewRating(e.target.value)}
+                >
+                  <option value={5}>⭐⭐⭐⭐⭐ 5 Stars (Excellent)</option>
+                  <option value={4}>⭐⭐⭐⭐ 4 Stars (Very Good)</option>
+                  <option value={3}>⭐⭐⭐ 3 Stars (Satisfactory)</option>
+                  <option value={2}>⭐⭐ 2 Stars (Needs Improvement)</option>
+                  <option value={1}>⭐ 1 Star (Poor)</option>
                 </select>
               </div>
-              <div className="input-group" style={{ marginBottom: "20px" }}>
-                <label className="label">Comment / Feedback</label>
+
+              <div className="mb-4">
+                <label className="form-label small fw-semibold">Feedback Comments</label>
                 <textarea
-                  className="textarea"
+                  className="form-control"
                   rows={3}
                   value={reviewComment}
                   onChange={(e) => setReviewComment(e.target.value)}
-                  placeholder="Explain details of your consultation..."
+                  placeholder="Share details regarding your diagnosis, clarity, and doctor communication..."
                   required
                 />
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                <button type="button" onClick={() => setReviewDoctorId(null)} className="btn btn-text">Skip</button>
-                <button type="submit" className="btn btn-primary">Submit Review</button>
+
+              <div className="d-flex justify-content-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReviewDoctorId(null)}
+                  className="btn btn-outline-secondary rounded-pill px-3"
+                >
+                  Skip
+                </button>
+                <button type="submit" className="btn btn-primary rounded-pill px-4">
+                  Submit Review
+                </button>
               </div>
             </form>
           </div>

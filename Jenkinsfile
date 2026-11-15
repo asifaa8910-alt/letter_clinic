@@ -6,7 +6,6 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -49,17 +48,18 @@ pipeline {
                 }
             }
         }
-        stage('Create Backend .env') {
-    steps {
-        writeFile file: 'backend/.env', text: '''
-PORT=5050
-MONGODB_URI=mongodb://mongodb:27017/letter_clinic
-JWT_SECRET=super_secret_key_for_letter_clinic_2026
-JWT_EXPIRES_IN=7d
-NODE_ENV=development
-'''
-    }
-}
+
+        stage('Prepare Backend Environment') {
+            steps {
+                sh '''
+                if [ ! -f backend/.env ]; then
+                    if [ -f backend/.env.example ]; then
+                        cp backend/.env.example backend/.env
+                    fi
+                fi
+                '''
+            }
+        }
 
         stage('Build Docker Images') {
             steps {
@@ -67,17 +67,15 @@ NODE_ENV=development
             }
         }
 
-      stage('Deploy Containers') {
-    steps {
-        sh '''
-        docker compose down || true
-
-        docker rm -f letterclinic_mongodb letterclinic_frontend letter_clinicbackend 2>/dev/null || true
-
-        docker compose up -d
-        '''
-    }
-}
+        stage('Deploy Containers') {
+            steps {
+                sh '''
+                docker compose down || true
+                docker rm -f letterclinic_frontend letter_clinicbackend 2>/dev/null || true
+                docker compose up -d
+                '''
+            }
+        }
 
         stage('Verify Deployment') {
             steps {

@@ -1,21 +1,32 @@
-# Node modules and build output
+# Dependencies
+node_modules/
 **/node_modules/
+
+# Production Build Output
+dist/
+dist-ssr/
 **/dist/
 **/dist-ssr/
-**/*.local
 
-# Logs and system files
+# Environment Variables
+.env
+.env.*
+*.env
+!*.env.example
+
+# Logs
+logs/
+*.log
 **/logs
 **/*.log
+
+# OS & Editor
+.DS_Store
 **/.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Internal
 .agent/
 .gemini/
-
-**/node_modules/
-**/dist/
-**/dist-ssr/
-**/*.local
-**/logs
-**/*.log
-**/.DS_Store
-

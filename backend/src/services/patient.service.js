@@ -81,8 +81,7 @@ export const analyzeSymptoms = async (userId, age, gender, symptomsText, duratio
   return report;
 };
 
-export const updatePatientProfile = async (userId, name, email, password) => {
-  // Check if email already exists for another user
+export const updatePatientProfile = async (userId, name, email, password, phone, bloodGroup, medicalHistory) => {
   const emailUser = await User.findOne({ email });
   if (emailUser && emailUser._id.toString() !== userId.toString()) {
     throw new Error("Email already registered by another account");
@@ -98,7 +97,17 @@ export const updatePatientProfile = async (userId, name, email, password) => {
   }
   await user.save();
 
-  await Patient.findOneAndUpdate({ userId }, { name, email });
+  await Patient.findOneAndUpdate(
+    { userId },
+    {
+      name,
+      email,
+      phone: phone || "",
+      bloodGroup: bloodGroup || "O+",
+      medicalHistory: medicalHistory || "None reported"
+    },
+    { upsert: true, new: true }
+  );
 
   await ActivityLog.create({
     timestamp: new Date().toLocaleString(),
@@ -122,7 +131,7 @@ export const deleteSymptomReport = async (id, userId) => {
   return await SymptomReport.deleteOne({ _id: id, userId });
 };
 
-// Reminders
+// Reminders with First-Class Fields & IDOR Protection
 export const getReminders = async (userId) => {
   return await Reminder.find({ userId }).sort({ createdAt: -1 });
 };
@@ -130,6 +139,9 @@ export const getReminders = async (userId) => {
 export const createReminder = async (userId, medicineName, dosage, frequency, time) => {
   return await Reminder.create({
     userId,
+    medicineName,
+    dosage,
+    frequency,
     type: "medicine",
     time,
     message: `${medicineName} (${dosage}) - ${frequency}`,
@@ -139,7 +151,7 @@ export const createReminder = async (userId, medicineName, dosage, frequency, ti
 
 export const toggleReminder = async (id, userId) => {
   const reminder = await Reminder.findOne({ _id: id, userId });
-  if (!reminder) throw new Error("Reminder not found");
+  if (!reminder) throw new Error("Reminder not found or unauthorized");
   reminder.active = !reminder.active;
   await reminder.save();
   return reminder;
@@ -152,36 +164,15 @@ export const deleteReminder = async (id, userId) => {
 export const updateReminder = async (reminderId, userId, updateFields) => {
   const reminder = await Reminder.findOne({ _id: reminderId, userId });
   if (!reminder) {
-    throw new Error("Reminder not found");
+    throw new Error("Reminder not found or unauthorized");
   }
 
-  // ponytail: Reminder stores medicine data packed into a single `message` string.
-  // Parsing it back out with regex is fragile. Upgrade path: add medicineName/dosage/frequency
-  // as real fields on the Reminder schema and drop the packed message format.
-  // Format is "medicineName (dosage) - frequency"
-  let medicineName = "";
-  let dosage = "";
-  let frequency = "";
+  if (updateFields.medicineName !== undefined) reminder.medicineName = updateFields.medicineName;
+  if (updateFields.dosage !== undefined) reminder.dosage = updateFields.dosage;
+  if (updateFields.frequency !== undefined) reminder.frequency = updateFields.frequency;
+  if (updateFields.time !== undefined) reminder.time = updateFields.time;
 
-  const match = reminder.message.match(/^(.*?)\s*\((.*?)\)\s*-\s*(.*)$/);
-  if (match) {
-    medicineName = match[1];
-    dosage = match[2];
-    frequency = match[3];
-  } else {
-    medicineName = reminder.message;
-  }
-
-  // Override with updated fields if provided
-  if (updateFields.medicineName !== undefined) medicineName = updateFields.medicineName;
-  if (updateFields.dosage !== undefined) dosage = updateFields.dosage;
-  if (updateFields.frequency !== undefined) frequency = updateFields.frequency;
-
-  if (updateFields.time !== undefined) {
-    reminder.time = updateFields.time;
-  }
-
-  reminder.message = `${medicineName} (${dosage}) - ${frequency}`;
+  reminder.message = `${reminder.medicineName} (${reminder.dosage}) - ${reminder.frequency}`;
   await reminder.save();
   return reminder;
 };
@@ -199,5 +190,3 @@ export const getPatientStats = async (userId) => {
     totalSymptomReports
   };
 };
-
-

@@ -34,20 +34,21 @@ export const bookAppointment = async (patientId, patientName, doctorId, doctorNa
   await ActivityLog.create({
     timestamp: new Date().toLocaleString(),
     action: "Appointment Booked",
-    details: `Patient ${patientName} booked slot on ${slot.date} at ${slot.time} with ${doctorName}.`
+    details: `Patient ${patientName} booked slot on ${slot.date} at ${slot.time} with ${doctor.name}.`
   });
 
   // Notifications
   await Notification.create({
     userId: patientId,
     title: "Appointment Booked",
-    message: `Your appointment with Dr. ${doctorName} is confirmed for ${slot.date} at ${slot.time}.`,
+    message: `Your appointment with Dr. ${doctor.name} is confirmed for ${slot.date} at ${slot.time}.`,
     timestamp: new Date().toLocaleString(),
     type: "appointment"
   });
 
+  // Fix: Send notification to the Doctor's User ID so they can see it
   await Notification.create({
-    userId: doctorId,
+    userId: doctorUserId,
     title: "New Consultation",
     message: `Patient ${patientName} booked a consultation for ${slot.date} at ${slot.time}.`,
     timestamp: new Date().toLocaleString(),
@@ -59,16 +60,28 @@ export const bookAppointment = async (patientId, patientName, doctorId, doctorNa
 
 export const getAppointments = async (role, userId) => {
   if (role === "patient") {
-    return await Appointment.find({ patientId: userId });
+    return await Appointment.find({ patientId: userId }).sort({ createdAt: -1 });
   } else if (role === "doctor") {
-    return await Appointment.find({ doctorId: userId });
+    return await Appointment.find({ doctorId: userId }).sort({ createdAt: -1 });
   }
-  return await Appointment.find({});
+  return await Appointment.find({}).sort({ createdAt: -1 });
 };
 
-export const cancelAppointment = async (appointmentId) => {
+export const cancelAppointment = async (appointmentId, user) => {
   const app = await Appointment.findById(appointmentId);
-  if (!app) return;
+  if (!app) {
+    throw new Error("Appointment not found");
+  }
+
+  // IDOR Protection: Verify caller is participant or admin
+  if (user && user.role !== "admin") {
+    const isParticipant =
+      app.patientId.toString() === user._id.toString() ||
+      app.doctorId.toString() === user._id.toString();
+    if (!isParticipant) {
+      throw new Error("Not authorized to cancel this appointment");
+    }
+  }
 
   app.status = "Cancelled";
   await app.save();
@@ -107,11 +120,25 @@ export const cancelAppointment = async (appointmentId) => {
     timestamp: new Date().toLocaleString(),
     type: "appointment"
   });
+
+  return app;
 };
 
-export const completeAppointment = async (appointmentId) => {
+export const completeAppointment = async (appointmentId, user) => {
   const app = await Appointment.findById(appointmentId);
-  if (!app) return;
+  if (!app) {
+    throw new Error("Appointment not found");
+  }
+
+  // IDOR Protection: Allow doctor, patient participant, or admin
+  if (user && user.role !== "admin") {
+    const isParticipant =
+      app.patientId.toString() === user._id.toString() ||
+      app.doctorId.toString() === user._id.toString();
+    if (!isParticipant) {
+      throw new Error("Not authorized to complete this consultation");
+    }
+  }
 
   app.status = "Completed";
   await app.save();
@@ -121,12 +148,24 @@ export const completeAppointment = async (appointmentId) => {
     action: "Appointment Completed",
     details: `Consultation between ${app.patientName} and ${app.doctorName} completed.`
   });
+
+  return app;
 };
 
-export const rescheduleAppointment = async (appointmentId, newSlotId) => {
+export const rescheduleAppointment = async (appointmentId, newSlotId, user) => {
   const app = await Appointment.findById(appointmentId);
   if (!app) {
     throw new Error("Appointment not found");
+  }
+
+  // IDOR Protection: Verify caller is participant or admin
+  if (user && user.role !== "admin") {
+    const isParticipant =
+      app.patientId.toString() === user._id.toString() ||
+      app.doctorId.toString() === user._id.toString();
+    if (!isParticipant) {
+      throw new Error("Not authorized to reschedule this appointment");
+    }
   }
 
   if (app.status === "Cancelled" || app.status === "Completed") {
@@ -164,7 +203,7 @@ export const rescheduleAppointment = async (appointmentId, newSlotId) => {
   await ActivityLog.create({
     timestamp: new Date().toLocaleString(),
     action: "Appointment Rescheduled",
-    details: `Patient ${app.patientName} rescheduled appointment with ${app.doctorName} from ${oldDate} ${oldTime} to ${newSlot.date} ${newSlot.time}.`
+    details: `Appointment between ${app.patientName} and ${app.doctorName} rescheduled from ${oldDate} ${oldTime} to ${newSlot.date} ${newSlot.time}.`
   });
 
   // Notifications
@@ -186,4 +225,3 @@ export const rescheduleAppointment = async (appointmentId, newSlotId) => {
 
   return app;
 };
-

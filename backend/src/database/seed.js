@@ -169,17 +169,48 @@ export const seedDB = async () => {
     }
 
     // 5. Seed Reviews
-    if (docEleanor) {
+    if (docEleanor && patientUser) {
       await Review.create({
         doctorId: docEleanor._id,
-        patientName: "Jane Smith",
+        patientId: patientUser._id,
+        patientName: patientUser.name,
         rating: 5,
         comment: "Exceptional cardiologist! Spent time explaining everything.",
         date: "2026-07-05"
       });
     }
 
-    // 6. Seed Activity Logs & Notifications
+    // 6. Seed Sample Prescription and Reminder
+    if (docEleanor && patientUser) {
+      const { Prescription } = await import("../models/prescription.model.js");
+      const { Reminder } = await import("../models/reminder.model.js");
+      
+      await Prescription.create({
+        patientId: patientUser._id,
+        doctorId: docEleanor._id,
+        doctorName: "Dr. Eleanor Vance",
+        date: "2026-07-06",
+        symptoms: "Mild hypertension and palpitations",
+        medicines: [
+          { name: "Amlodipine", dosage: "5mg", duration: "30 days", instructions: "Take once daily in the morning after breakfast" },
+          { name: "Metoprolol", dosage: "25mg", duration: "15 days", instructions: "Take once daily at night" }
+        ],
+        notes: "Monitor blood pressure daily. Maintain low-sodium diet and schedule follow-up in 4 weeks."
+      });
+
+      await Reminder.create({
+        userId: patientUser._id,
+        medicineName: "Amlodipine",
+        dosage: "5mg",
+        frequency: "Once Daily",
+        type: "medicine",
+        time: "08:00 AM",
+        message: "Amlodipine (5mg) - Once Daily",
+        active: true
+      });
+    }
+
+    // 7. Seed Activity Logs & Notifications
     await ActivityLog.create({ timestamp: new Date().toLocaleString(), action: "System Seed", details: "Initial medical platform database seeded successfully." });
     await ActivityLog.create({ timestamp: new Date().toLocaleString(), action: "Admin Action", details: "Platform admin registered to security logs." });
 

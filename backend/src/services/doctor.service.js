@@ -57,8 +57,8 @@ export const updateDoctorProfile = async (userId, data) => {
     {
       name: data.name,
       specialty: data.specialty,
-      experience: Number(data.experience),
-      fee: Number(data.fee),
+      experience: Number(data.experience) || 0,
+      fee: Number(data.fee) || 400,
       hospital: data.hospital,
       bio: data.bio
     },
@@ -74,63 +74,46 @@ export const updateDoctorProfile = async (userId, data) => {
   return doctor;
 };
 
-// Slots
+// Slots with IDOR Protection
 export const getDoctorSlots = async (id) => {
   const doc = await Doctor.findOne({ $or: [{ userId: id }, { _id: id }] });
   if (!doc) return [];
-  return await Slot.find({ doctorId: doc.userId });
+  return await Slot.find({ doctorId: doc.userId }).sort({ date: 1, time: 1 });
 };
 
 export const addDoctorSlot = async (doctorId, date, time) => {
   return await Slot.create({ doctorId, date, time, available: true });
 };
 
-export const deleteDoctorSlot = async (slotId) => {
-  return await Slot.findByIdAndDelete(slotId);
+export const deleteDoctorSlot = async (slotId, doctorId) => {
+  // IDOR Protection: Doctor can only delete their own slots
+  const query = doctorId ? { _id: slotId, doctorId } : { _id: slotId };
+  const slot = await Slot.findOneAndDelete(query);
+  if (!slot) {
+    throw new Error("Slot not found or not authorized to delete");
+  }
+  return slot;
 };
 
-// Reviews
+export const toggleDoctorSlot = async (slotId, doctorId) => {
+  const slot = await Slot.findOne({ _id: slotId, doctorId });
+  if (!slot) throw new Error("Slot not found or not authorized");
+  slot.available = !slot.available;
+  await slot.save();
+  return slot;
+};
+
+// Reviews with Patient ID Tracking & IDOR Protection
 export const getDoctorReviews = async (id) => {
   const doc = await Doctor.findOne({ $or: [{ userId: id }, { _id: id }] });
   if (!doc) return [];
-  return await Review.find({ doctorId: doc.userId });
+  return await Review.find({ doctorId: doc.userId }).sort({ createdAt: -1 });
 };
 
-// Prescriptions
-export const getPatientPrescriptions = async (patientId) => {
-  return await Prescription.find({ patientId });
-};
-
-export const createPrescription = async (patientId, doctorName, symptoms, medicines, notes) => {
-  const rx = await Prescription.create({
-    patientId,
-    doctorName,
-    date: new Date().toISOString().split("T")[0],
-    symptoms,
-    medicines,
-    notes
-  });
-
-  await Notification.create({
-    userId: patientId,
-    title: "Prescription Received",
-    message: `Dr. ${doctorName} has issued a digital prescription for you.`,
-    timestamp: new Date().toLocaleString(),
-    type: "prescription"
-  });
-
-  await ActivityLog.create({
-    timestamp: new Date().toLocaleString(),
-    action: "Prescription Issued",
-    details: `Dr. ${doctorName} issued digital prescription to Patient ID ${patientId}.`
-  });
-
-  return rx;
-};
-
-export const addReview = async (doctorId, patientName, rating, comment) => {
+export const addReview = async (doctorId, patientId, patientName, rating, comment) => {
   const review = await Review.create({
     doctorId,
+    patientId,
     patientName,
     rating: Number(rating),
     comment,
@@ -157,30 +140,19 @@ export const addReview = async (doctorId, patientName, rating, comment) => {
   return review;
 };
 
-export const toggleDoctorSlot = async (slotId, doctorId) => {
-  const slot = await Slot.findOne({ _id: slotId, doctorId });
-  if (!slot) throw new Error("Slot not found");
-  slot.available = !slot.available;
-  await slot.save();
-  return slot;
+export const getPatientReviews = async (patientId, patientName) => {
+  return await Review.find({
+    $or: [{ patientId }, { patientName }]
+  }).sort({ createdAt: -1 });
 };
 
-export const getDoctorPrescriptions = async (doctorName) => {
-  return await Prescription.find({ doctorName }).sort({ createdAt: -1 });
-};
+export const updateReview = async (id, patientId, patientName, rating, comment) => {
+  const review = await Review.findOne({
+    _id: id,
+    $or: [{ patientId }, { patientName }]
+  });
+  if (!review) throw new Error("Review not found or not authorized to edit");
 
-export const getPrescriptionById = async (id) => {
-  return await Prescription.findById(id);
-};
-
-export const getPatientReviews = async (patientName) => {
-  return await Review.find({ patientName }).sort({ createdAt: -1 });
-};
-
-export const updateReview = async (id, patientName, rating, comment) => {
-  const review = await Review.findOne({ _id: id, patientName });
-  if (!review) throw new Error("Review not found");
-  
   if (rating !== undefined) review.rating = Number(rating);
   if (comment !== undefined) review.comment = comment;
   await review.save();
@@ -199,12 +171,15 @@ export const updateReview = async (id, patientName, rating, comment) => {
   return review;
 };
 
-export const deleteReview = async (id, patientName) => {
-  const review = await Review.findOne({ _id: id, patientName });
-  if (!review) throw new Error("Review not found");
-  
+export const deleteReview = async (id, patientId, patientName) => {
+  const review = await Review.findOne({
+    _id: id,
+    $or: [{ patientId }, { patientName }]
+  });
+  if (!review) throw new Error("Review not found or not authorized to delete");
+
   const docId = review.doctorId;
-  await Review.deleteOne({ _id: id, patientName });
+  await Review.deleteOne({ _id: id });
 
   const reviews = await Review.find({ doctorId: docId });
   if (reviews.length > 0) {
@@ -227,6 +202,63 @@ export const deleteReview = async (id, patientName) => {
   }
 };
 
+// Prescriptions with IDOR Protection
+export const getPatientPrescriptions = async (patientId) => {
+  return await Prescription.find({ patientId }).sort({ createdAt: -1 });
+};
+
+export const createPrescription = async (patientId, doctorId, doctorName, symptoms, medicines, notes) => {
+  const rx = await Prescription.create({
+    patientId,
+    doctorId,
+    doctorName,
+    date: new Date().toISOString().split("T")[0],
+    symptoms,
+    medicines,
+    notes
+  });
+
+  await Notification.create({
+    userId: patientId,
+    title: "Prescription Received",
+    message: `Dr. ${doctorName} has issued a digital prescription for you.`,
+    timestamp: new Date().toLocaleString(),
+    type: "prescription"
+  });
+
+  await ActivityLog.create({
+    timestamp: new Date().toLocaleString(),
+    action: "Prescription Issued",
+    details: `Dr. ${doctorName} issued digital prescription to Patient ID ${patientId}.`
+  });
+
+  return rx;
+};
+
+export const getDoctorPrescriptions = async (doctorId, doctorName) => {
+  return await Prescription.find({
+    $or: [{ doctorId }, { doctorName }]
+  }).sort({ createdAt: -1 });
+};
+
+export const getPrescriptionById = async (id, user) => {
+  const rx = await Prescription.findById(id);
+  if (!rx) return null;
+
+  // IDOR Protection: Verify caller is the patient, doctor, or admin
+  if (user && user.role !== "admin") {
+    const isOwner =
+      rx.patientId.toString() === user._id.toString() ||
+      (rx.doctorId && rx.doctorId.toString() === user._id.toString()) ||
+      rx.doctorName === user.name;
+    if (!isOwner) {
+      throw new Error("Not authorized to view this prescription");
+    }
+  }
+
+  return rx;
+};
+
 export const getDoctorVerificationStatus = async (userId) => {
   const doc = await Doctor.findOne({ userId });
   if (!doc) throw new Error("Doctor profile not found");
@@ -247,7 +279,7 @@ export const submitVerification = async (userId, license, degree) => {
     }
     ver.license = license;
     ver.degree = degree;
-    ver.status = "Pending"; // reset status on update
+    ver.status = "Pending";
     ver.submittedAt = new Date().toISOString().split("T")[0];
     await ver.save();
   } else {
@@ -261,7 +293,6 @@ export const submitVerification = async (userId, license, degree) => {
     });
   }
 
-  // Create an Activity Log entry
   await ActivityLog.create({
     timestamp: new Date().toLocaleString(),
     action: "Doctor Verification Submitted",
@@ -284,7 +315,9 @@ export const getDoctorStats = async (userId) => {
   const completedAppointments = await Appointment.countDocuments({ doctorId: userId, status: "Completed" });
   const cancelledAppointments = await Appointment.countDocuments({ doctorId: userId, status: "Cancelled" });
 
-  const totalPrescriptions = await Prescription.countDocuments({ doctorName });
+  const totalPrescriptions = await Prescription.countDocuments({
+    $or: [{ doctorId: userId }, { doctorName }]
+  });
 
   return {
     totalAppointments,
@@ -296,6 +329,3 @@ export const getDoctorStats = async (userId) => {
     reviewsCount: doc.reviewsCount
   };
 };
-
-
-

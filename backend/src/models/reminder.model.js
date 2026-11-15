@@ -7,9 +7,21 @@ const reminderSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
+    medicineName: {
+      type: String,
+      default: ""
+    },
+    dosage: {
+      type: String,
+      default: ""
+    },
+    frequency: {
+      type: String,
+      default: ""
+    },
     type: {
       type: String,
-      required: true
+      default: "medicine"
     },
     time: {
       type: String,

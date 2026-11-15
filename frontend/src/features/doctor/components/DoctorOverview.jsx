@@ -1,61 +1,116 @@
 import React from "react";
-import { Calendar, CheckCircle, FileText } from "lucide-react";
+import { Calendar, CheckCircle, FileText, Video, Clock } from "lucide-react";
 
-export default function DoctorOverview({ user, appointments, openPrescribeModal }) {
+export default function DoctorOverview({
+  user,
+  appointments,
+  openPrescribeModal,
+  handleJoinConsultation
+}) {
+  const bookedAppointments = appointments.filter((a) => a.status === "Booked");
+  const completedAppointments = appointments.filter((a) => a.status === "Completed");
+
   return (
     <div>
-      <div className="mb-32">
-        <h2 style={{ fontSize: "28px" }}>Doctor Portal — {user?.name}</h2>
-        <p style={{ fontSize: "14px" }}>Manage patient consultations, edit diagnostic summaries, and issue prescriptions</p>
+      <div className="mb-4">
+        <h2 className="fw-bold mb-1" style={{ fontSize: "28px" }}>
+          Practitioner Workspace — {user?.name}
+        </h2>
+        <p className="text-secondary small mb-0">
+          Conduct live consultations, review patient queue, and issue certified digital prescriptions
+        </p>
       </div>
 
-      <div className="grid-2">
-        {/* Appointments */}
-        <div className="card">
-          <h3 className="card-title" style={{ fontSize: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <Calendar size={20} className="text-surgical-blue" style={{ color: "var(--color-surgical-blue)" }} />
-            <span>Booked Patient Consultations</span>
-          </h3>
-          <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-            {appointments.filter(a => a.status === "Booked").length === 0 ? (
-              <p style={{ fontSize: "14px", fontStyle: "italic", color: "var(--color-slate)" }}>No consultations booked today.</p>
-            ) : (
-              appointments.filter(a => a.status === "Booked").map(app => (
-                <div key={app.id} style={{ background: "var(--color-cloud-gray)", padding: "16px", borderRadius: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <h4 style={{ fontSize: "16px" }}>{app.patientName}</h4>
-                    <p style={{ fontSize: "13px", color: "var(--color-charcoal)" }}>{app.slotDate} at {app.slotTime}</p>
-                  </div>
-                  <div className="flex-gap-16">
-                    <button onClick={() => openPrescribeModal(app)} className="btn btn-primary" style={{ padding: "8px 16px", fontSize: "12px" }}>
-                      <FileText size={14} />
-                      <span>Prescribe</span>
-                    </button>
-                  </div>
+      <div className="row g-4">
+        {/* Booked Consultations Card */}
+        <div className="col-lg-7">
+          <div className="card h-100 shadow-sm border-0 rounded-4 p-4">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h3 className="card-title fs-5 fw-bold mb-0 d-flex align-items-center gap-2">
+                <Calendar size={20} className="text-primary" />
+                <span>Scheduled Patient Appointments</span>
+              </h3>
+              <span className="badge bg-primary-subtle text-primary rounded-pill">
+                {bookedAppointments.length} In Queue
+              </span>
+            </div>
+
+            <div className="d-flex flex-column gap-3 mt-3">
+              {bookedAppointments.length === 0 ? (
+                <div className="text-center py-4 bg-light rounded-3">
+                  <p className="text-muted fst-italic small mb-0">No consultations booked at the moment.</p>
                 </div>
-              ))
-            )}
+              ) : (
+                bookedAppointments.map((app) => (
+                  <div
+                    key={app.id}
+                    className="p-3 bg-light rounded-3 border d-flex justify-content-between align-items-center flex-wrap gap-2 shadow-sm"
+                  >
+                    <div>
+                      <h5 className="fw-bold fs-6 mb-1 text-dark">{app.patientName}</h5>
+                      <p className="text-secondary small mb-0 d-flex align-items-center gap-1">
+                        <Clock size={13} />
+                        <span>{app.slotDate} at {app.slotTime}</span>
+                      </p>
+                    </div>
+
+                    <div className="d-flex gap-2">
+                      <button
+                        onClick={() => handleJoinConsultation(app)}
+                        className="btn btn-primary btn-sm rounded-pill d-flex align-items-center gap-1 px-3 shadow-sm"
+                      >
+                        <Video size={14} />
+                        <span>Join Call</span>
+                      </button>
+                      <button
+                        onClick={() => openPrescribeModal(app)}
+                        className="btn btn-outline-success btn-sm rounded-pill d-flex align-items-center gap-1 px-3"
+                      >
+                        <FileText size={14} />
+                        <span>Prescribe</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Completed Consultations list */}
-        <div className="card">
-          <h3 className="card-title" style={{ fontSize: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <CheckCircle size={20} className="text-surgical-blue" style={{ color: "var(--color-surgical-blue)" }} />
-            <span>Consultation Log History</span>
-          </h3>
-          <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-            {appointments.filter(a => a.status === "Completed").length === 0 ? (
-              <p style={{ fontSize: "14px", fontStyle: "italic", color: "var(--color-slate)" }}>No completed consults.</p>
-            ) : (
-              appointments.filter(a => a.status === "Completed").map(app => (
-                <div key={app.id} style={{ border: "1px solid rgba(0,0,0,0.06)", padding: "12px 16px", borderRadius: "12px" }}>
-                  <span className="badge" style={{ float: "right", border: "1px solid #10b981", color: "#10b981", fontSize: "10px" }}>COMPLETED</span>
-                  <h4 style={{ fontSize: "15px" }}>{app.patientName}</h4>
-                  <p style={{ fontSize: "12px", color: "var(--color-charcoal)" }}>{app.slotDate} at {app.slotTime}</p>
+        {/* Completed Consultations Log */}
+        <div className="col-lg-5">
+          <div className="card h-100 shadow-sm border-0 rounded-4 p-4">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h3 className="card-title fs-5 fw-bold mb-0 d-flex align-items-center gap-2">
+                <CheckCircle size={20} className="text-success" />
+                <span>Consultation Log</span>
+              </h3>
+              <span className="badge bg-success-subtle text-success rounded-pill">
+                {completedAppointments.length} Done
+              </span>
+            </div>
+
+            <div className="d-flex flex-column gap-3 mt-3" style={{ maxHeight: "400px", overflowY: "auto" }}>
+              {completedAppointments.length === 0 ? (
+                <div className="text-center py-4 bg-light rounded-3">
+                  <p className="text-muted fst-italic small mb-0">No completed consultations yet.</p>
                 </div>
-              ))
-            )}
+              ) : (
+                completedAppointments.map((app) => (
+                  <div key={app.id} className="p-3 border rounded-3 bg-white">
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <strong className="fs-6 text-dark">{app.patientName}</strong>
+                      <span className="badge bg-success-subtle text-success border border-success-subtle">
+                        COMPLETED
+                      </span>
+                    </div>
+                    <small className="text-muted d-block">
+                      {app.slotDate} at {app.slotTime}
+                    </small>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>

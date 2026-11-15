@@ -15,6 +15,18 @@ const patientSchema = new mongoose.Schema(
     email: {
       type: String,
       required: true
+    },
+    phone: {
+      type: String,
+      default: ""
+    },
+    bloodGroup: {
+      type: String,
+      default: "O+"
+    },
+    medicalHistory: {
+      type: String,
+      default: "None reported"
     }
   },
   {

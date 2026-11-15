@@ -1,31 +1,29 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
+import ProtectedRoute from "./components/ProtectedRoute";
 import LandingPage from "./features/landing/LandingPage";
 import Login from "./features/auth/Login";
 import Register from "./features/auth/Register";
 import PatientDashboard from "./features/patient/PatientDashboard";
 import DoctorDashboard from "./features/doctor/DoctorDashboard";
 import AdminDashboard from "./features/admin/AdminDashboard";
-import { initMockDatabase, mockService } from "./services/mockService";
+import { useAuth } from "./context/AuthContext";
+import { apiService } from "./services/apiService";
 import { MessageSquare, Send, X, Sparkles } from "lucide-react";
 
 function AppContent() {
-  const [currentUser, setCurrentUser] = useState(null);
+  const { user } = useAuth();
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState([
-    { sender: "ai", text: "Hello! I am Letters AI Medical Assistant. How can I help you today?", timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+    {
+      sender: "ai",
+      text: "Hello! I am Letters AI Medical Assistant. How can I help you today?",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    }
   ]);
   const [isTyping, setIsTyping] = useState(false);
-
-  useEffect(() => {
-    initMockDatabase();
-    const user = mockService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-    }
-  }, []);
 
   const handleSendChat = (textToSend) => {
     const text = textToSend || chatInput;
@@ -34,149 +32,136 @@ function AppContent() {
     const userMsg = {
       sender: "user",
       text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     };
-    
-    setChatMessages(prev => [...prev, userMsg]);
+
+    setChatMessages((prev) => [...prev, userMsg]);
     if (!textToSend) setChatInput("");
     setIsTyping(true);
 
     setTimeout(() => {
-      const responseText = mockService.getChatbotResponse(text);
+      const responseText = apiService.getChatbotResponse(text);
       const aiMsg = {
         sender: "ai",
         text: responseText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       };
-      setChatMessages(prev => [...prev, aiMsg]);
+      setChatMessages((prev) => [...prev, aiMsg]);
       setIsTyping(false);
-    }, 1000);
-  };
-
-  const handleLoginSuccess = (user) => {
-    setCurrentUser(user);
-  };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-  };
-
-  const handleProfileUpdate = () => {
-    const user = mockService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-    }
+    }, 700);
   };
 
   return (
     <>
-      <Header user={currentUser} onLogout={handleLogout} />
-      <main style={{ minHeight: "calc(100vh - 72px)" }}>
+      <Header />
+      <main style={{ minHeight: "calc(100vh - 140px)" }}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
-          <Route path="/register" element={<Register onRegisterSuccess={handleLoginSuccess} />} />
-          
-          {/* Patient Routes */}
-          <Route 
-            path="/patient/*" 
-            element={
-              currentUser && currentUser.role === "patient" ? (
-                <PatientDashboard user={currentUser} onProfileUpdate={handleProfileUpdate} />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            } 
+          <Route
+            path="/login"
+            element={user ? <Navigate to={`/${user.role}`} replace /> : <Login />}
+          />
+          <Route
+            path="/register"
+            element={user ? <Navigate to={`/${user.role}`} replace /> : <Register />}
           />
 
-          {/* Doctor Routes */}
-          <Route 
-            path="/doctor/*" 
+          {/* Protected Patient Routes */}
+          <Route
+            path="/patient/*"
             element={
-              currentUser && currentUser.role === "doctor" ? (
-                <DoctorDashboard user={currentUser} onProfileUpdate={handleProfileUpdate} />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            } 
+              <ProtectedRoute allowedRoles={["patient"]}>
+                <PatientDashboard />
+              </ProtectedRoute>
+            }
           />
 
-          {/* Admin Routes */}
-          <Route 
-            path="/admin/*" 
+          {/* Protected Doctor Routes */}
+          <Route
+            path="/doctor/*"
             element={
-              currentUser && currentUser.role === "admin" ? (
-                <AdminDashboard user={currentUser} />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            } 
+              <ProtectedRoute allowedRoles={["doctor"]}>
+                <DoctorDashboard />
+              </ProtectedRoute>
+            }
           />
 
-          {/* Fallback */}
+          {/* Protected Admin Routes */}
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Fallback route */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      
-      <footer style={{ borderTop: "1px solid var(--color-border)", padding: "32px 0", background: "transparent", textAlign: "center", fontSize: "13px", color: "var(--color-slate)" }}>
+
+      <footer className="border-top py-4 bg-light text-center text-secondary small">
         <div className="container">
-          <p>© 2026 Letters Clinic. Localhost MERN System Demonstration.</p>
+          <p className="mb-0">© 2026 Letters Clinic. Production MERN Architecture with MongoDB Atlas.</p>
         </div>
       </footer>
 
       {/* Floating AI Chatbot Widget */}
       <div>
         {/* Toggle Bubble */}
-        <button 
-          onClick={() => setShowChat(!showChat)} 
-          className="chatbot-bubble"
-          title="AI Medical Assistant"
+        <button
+          onClick={() => setShowChat(!showChat)}
+          className="chatbot-bubble shadow-lg"
+          title="Letters AI Clinical Assistant"
+          aria-label="Open AI Assistant"
         >
-          {showChat ? <X size={28} /> : <MessageSquare size={28} />}
+          {showChat ? <X size={26} /> : <MessageSquare size={26} />}
         </button>
 
         {/* Chat Widget Panel */}
         {showChat && (
-          <div className="chatbot-panel">
+          <div className="chatbot-panel shadow-lg rounded-4 overflow-hidden border">
             {/* Header */}
-            <div className="chat-header">
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Sparkles size={16} fill="white" style={{ color: "white" }} />
-                <span style={{ fontWeight: "bold", fontSize: "14px" }}>Letters AI Assistant</span>
+            <div className="chat-header d-flex justify-content-between align-items-center p-3 text-white">
+              <div className="d-flex align-items-center gap-2">
+                <Sparkles size={16} />
+                <span className="fw-bold small">Letters AI Assistant</span>
               </div>
-              <button 
-                onClick={() => setShowChat(false)} 
-                style={{ background: "none", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}
+              <button
+                onClick={() => setShowChat(false)}
+                className="btn btn-sm btn-link text-white p-0"
+                aria-label="Close chat"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Chat Messages */}
-            <div className="chat-messages">
+            <div className="chat-messages p-3 d-flex flex-column gap-2" style={{ maxHeight: "300px", overflowY: "auto" }}>
               {chatMessages.map((msg, index) => (
-                <div 
-                  key={index} 
-                  className={msg.sender === "ai" ? "chat-bubble-ai" : "chat-bubble-user"}
-                >
-                  <p style={{ margin: 0, color: "inherit" }}>{msg.text}</p>
-                  <span style={{ display: "block", fontSize: "9px", opacity: 0.6, marginTop: "4px", textAlign: "right" }}>{msg.timestamp}</span>
+                <div key={index} className={msg.sender === "ai" ? "chat-bubble-ai" : "chat-bubble-user"}>
+                  <p className="m-0" style={{ fontSize: "13px" }}>{msg.text}</p>
+                  <span style={{ display: "block", fontSize: "9px", opacity: 0.6, marginTop: "4px", textAlign: "right" }}>
+                    {msg.timestamp}
+                  </span>
                 </div>
               ))}
               {isTyping && (
-                <div className="chat-bubble-ai" style={{ fontStyle: "italic", opacity: 0.7 }}>
-                  Letters AI is typing...
+                <div className="chat-bubble-ai fst-italic opacity-75 small">
+                  Letters AI is analyzing...
                 </div>
               )}
             </div>
 
-            {/* Suggestion Chips */}
-            <div className="chat-suggestions">
-              {["AI Triage Rules", "Licensing Policy", "ABHA health key", "Reviews & Stars"].map((chip) => (
-                <button 
-                  key={chip} 
-                  onClick={() => handleSendChat(chip)} 
-                  className="chat-suggestion-btn"
+            {/* Quick Suggestion Chips */}
+            <div className="chat-suggestions p-2 d-flex gap-1 overflow-x-auto border-top bg-light">
+              {["AI Triage Rules", "Licensing Policy", "Book Appointment", "Consultation Fees"].map((chip) => (
+                <button
+                  key={chip}
+                  onClick={() => handleSendChat(chip)}
+                  className="btn btn-outline-secondary btn-sm py-0 px-2 rounded-pill"
+                  style={{ fontSize: "11px", whiteSpace: "nowrap" }}
                 >
                   {chip}
                 </button>
@@ -184,19 +169,21 @@ function AppContent() {
             </div>
 
             {/* Message Input Area */}
-            <form 
-              onSubmit={(e) => { e.preventDefault(); handleSendChat(); }} 
-              className="chat-input-area"
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendChat();
+              }}
+              className="chat-input-area p-2 d-flex gap-2 border-top bg-white"
             >
-              <input 
-                type="text" 
-                className="input" 
-                placeholder="Ask clinical queries..." 
-                value={chatInput} 
-                onChange={(e) => setChatInput(e.target.value)} 
-                style={{ flex: 1, padding: "10px 14px", fontSize: "13px", height: "auto" }}
+              <input
+                type="text"
+                className="form-control form-control-sm rounded-pill"
+                placeholder="Ask clinical queries..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
               />
-              <button type="submit" className="btn btn-primary" style={{ padding: "10px", borderRadius: "8px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <button type="submit" className="btn btn-primary btn-sm rounded-circle p-2 d-flex align-items-center justify-content-center">
                 <Send size={14} />
               </button>
             </form>
@@ -207,12 +194,10 @@ function AppContent() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <Router>
       <AppContent />
     </Router>
   );
 }
-
-export default App;

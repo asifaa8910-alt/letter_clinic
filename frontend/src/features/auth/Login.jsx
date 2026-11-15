@@ -1,29 +1,54 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { Activity, Mail, Lock } from "lucide-react";
-import { mockService } from "../../services/mockService";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { Activity, Mail, Lock, AlertCircle, ArrowRight } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
-export default function Login({ onLoginSuccess }) {
+export default function Login() {
   const [email, setEmail] = useState("patient@clinic.com");
   const [password, setPassword] = useState("password");
-  const [error, setError] = useState("");
+  const [validationErrors, setValidationErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const { login, authError, setAuthError } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const validate = () => {
+    const errors = {};
+    if (!email.trim()) {
+      errors.email = "Email address is required";
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (!password) {
+      errors.password = "Password is required";
+    } else if (password.length < 6) {
+      errors.password = "Password must be at least 6 characters";
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError("");
+    if (!validate()) return;
+
+    setLoading(true);
     try {
-      const user = await mockService.login(email, password);
-      onLoginSuccess(user);
-      if (user.role === "patient") navigate("/patient");
-      else if (user.role === "doctor") navigate("/doctor");
-      else if (user.role === "admin") navigate("/admin");
-    } catch (err) {
-      setError(err.message);
+      const user = await login(email, password);
+      const destination = location.state?.from?.pathname || `/${user.role}`;
+      navigate(destination, { replace: true });
+    } catch {
+      // Error is stored in authError via context
+    } finally {
+      setLoading(false);
     }
   };
 
   const prefill = (role) => {
+    setAuthError("");
+    setValidationErrors({});
     if (role === "patient") {
       setEmail("patient@clinic.com");
       setPassword("password");
@@ -37,83 +62,114 @@ export default function Login({ onLoginSuccess }) {
   };
 
   return (
-    <div className="auth-page-wrapper">
-      {/* Decorative blurred glow spheres */}
-      <div className="auth-page-glow-1"></div>
-      <div className="auth-page-glow-2"></div>
-
-      {/* Redesigned Glass Card */}
-      <div className="glass-auth-card">
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <div style={{ display: "inline-flex", padding: "12px", background: "var(--color-sky-tint)", borderRadius: "50%", marginBottom: "16px" }}>
-            <Activity size={28} className="text-surgical-blue" style={{ color: "var(--color-surgical-blue)" }} />
+    <div className="container py-5 d-flex align-items-center justify-content-center" style={{ minHeight: "80vh" }}>
+      <div className="card shadow-lg border-0 rounded-4 p-4 p-md-5" style={{ maxWidth: "480px", width: "100%" }}>
+        <div className="text-center mb-4">
+          <div
+            className="d-inline-flex p-3 rounded-circle mb-3"
+            style={{ background: "rgba(37, 151, 208, 0.12)", color: "var(--color-surgical-blue)" }}
+          >
+            <Activity size={32} />
           </div>
-          <h3 style={{ fontSize: "26px", letterSpacing: "-0.02em", color: "var(--color-ink)", fontWeight: "bold" }}>Welcome Back</h3>
-          <p style={{ fontSize: "14px", color: "var(--color-slate)", marginTop: "4px" }}>Access your clinical workspace dashboard</p>
+          <h2 className="fw-bold mb-1" style={{ letterSpacing: "-0.02em" }}>Welcome Back</h2>
+          <p className="text-secondary small">Access your verified clinical workspace</p>
         </div>
 
-        {error && (
-          <div style={{ background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.15)", color: "#ef4444", padding: "12px 16px", borderRadius: "10px", fontSize: "13px", marginBottom: "20px" }}>
-            ⚠️ {error}
+        {authError && (
+          <div className="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 rounded-3 small mb-4" role="alert">
+            <AlertCircle size={16} />
+            <span>{authError}</span>
           </div>
         )}
 
-        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div className="input-group" style={{ margin: 0 }}>
-            <label className="label">Email Address</label>
-            <div style={{ position: "relative" }}>
-              <Mail size={16} style={{ position: "absolute", left: "14px", top: "14px", color: "var(--color-slate)" }} />
+        <form onSubmit={handleLogin} noValidate>
+          <div className="mb-3">
+            <label className="form-label small fw-semibold text-dark">Email Address</label>
+            <div className="position-relative">
+              <Mail size={16} className="position-absolute top-50 start-0 translate-middle-y ms-3 text-secondary" />
               <input
                 type="email"
-                className="input"
-                style={{ width: "100%", paddingLeft: "42px" }}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+                className={`form-control ps-5 py-2 ${validationErrors.email ? "is-invalid" : ""}`}
                 placeholder="name@example.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (validationErrors.email) setValidationErrors((prev) => ({ ...prev, email: "" }));
+                }}
+                required
               />
+              {validationErrors.email && (
+                <div className="invalid-feedback small">{validationErrors.email}</div>
+              )}
             </div>
           </div>
 
-          <div className="input-group" style={{ margin: 0 }}>
-            <label className="label">Password</label>
-            <div style={{ position: "relative" }}>
-              <Lock size={16} style={{ position: "absolute", left: "14px", top: "14px", color: "var(--color-slate)" }} />
+          <div className="mb-4">
+            <label className="form-label small fw-semibold text-dark">Password</label>
+            <div className="position-relative">
+              <Lock size={16} className="position-absolute top-50 start-0 translate-middle-y ms-3 text-secondary" />
               <input
                 type="password"
-                className="input"
-                style={{ width: "100%", paddingLeft: "42px" }}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                className={`form-control ps-5 py-2 ${validationErrors.password ? "is-invalid" : ""}`}
                 placeholder="••••••••"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (validationErrors.password) setValidationErrors((prev) => ({ ...prev, password: "" }));
+                }}
+                required
               />
+              {validationErrors.password && (
+                <div className="invalid-feedback small">{validationErrors.password}</div>
+              )}
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: "100%", padding: "14px", marginTop: "8px", borderRadius: "10px" }}>
-            Login to Dashboard
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary w-100 py-2 rounded-3 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm"
+          >
+            {loading ? (
+              <>
+                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span>Verifying credentials...</span>
+              </>
+            ) : (
+              <>
+                <span>Login to Workspace</span>
+                <ArrowRight size={16} />
+              </>
+            )}
           </button>
         </form>
 
-        <div style={{ marginTop: "24px", borderTop: "1px solid var(--color-border)", paddingTop: "20px" }}>
-          <p style={{ fontSize: "11px", textAlign: "center", marginBottom: "12px", color: "var(--color-slate)", fontWeight: "600", letterSpacing: "0.02em" }}>QUICK PRE-FILL ACCOUNTS FOR REVIEW</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
-            <button onClick={() => prefill("patient")} className="btn" style={{ padding: "8px", fontSize: "11px", background: "var(--color-sky-tint)", color: "var(--color-surgical-blue)" }}>
-              Patient
+        {/* Quick Pre-fill helper for test reviewers */}
+        <div className="border-top pt-4 mt-4 text-center">
+          <p className="text-uppercase text-secondary fw-bold" style={{ fontSize: "10px", letterSpacing: "0.05em" }}>
+            Quick Pre-Fill for Evaluation
+          </p>
+          <div className="d-flex justify-content-center gap-2 flex-wrap">
+            <button type="button" onClick={() => prefill("patient")} className="btn btn-sm btn-outline-secondary rounded-pill px-3">
+              Patient Demo
             </button>
-            <button onClick={() => prefill("doctor")} className="btn" style={{ padding: "8px", fontSize: "11px", background: "var(--color-sky-tint)", color: "var(--color-surgical-blue)" }}>
-              Doctor
+            <button type="button" onClick={() => prefill("doctor")} className="btn btn-sm btn-outline-secondary rounded-pill px-3">
+              Doctor Demo
             </button>
-            <button onClick={() => prefill("admin")} className="btn" style={{ padding: "8px", fontSize: "11px", background: "var(--color-sky-tint)", color: "var(--color-surgical-blue)" }}>
-              Admin
+            <button type="button" onClick={() => prefill("admin")} className="btn btn-sm btn-outline-secondary rounded-pill px-3">
+              Admin Demo
             </button>
           </div>
         </div>
 
-        <p style={{ fontSize: "13px", textAlign: "center", marginTop: "24px", color: "var(--color-slate)" }}>
-          Don't have an account? <Link to="/register" style={{ color: "var(--color-surgical-blue)", fontWeight: 600, textDecoration: "none" }}>Register here</Link>
-        </p>
+        <div className="text-center mt-4">
+          <small className="text-secondary">
+            Don't have an account yet?{" "}
+            <Link to="/register" className="fw-semibold text-primary text-decoration-none">
+              Register now
+            </Link>
+          </small>
+        </div>
       </div>
     </div>
   );

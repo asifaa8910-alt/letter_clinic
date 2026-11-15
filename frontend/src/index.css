@@ -818,3 +818,39 @@ p {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ==========================================
+   Print Styles for Digital E-Prescriptions
+   ========================================== */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-prescription, .printable-prescription * {
+    visibility: visible;
+  }
+  .printable-prescription {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    background: white !important;
+    color: black !important;
+    padding: 20px !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Slide in animation for toast */
+@keyframes slideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

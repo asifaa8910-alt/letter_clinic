@@ -90,7 +90,7 @@ router.get("/marketplace/doctors/:id/slots", marketplaceController.getDoctorSlot
 router.post("/appointments/book", protect, restrictTo("patient"), appointmentBookValidator, validateRequest, appointmentController.book);
 router.get("/appointments", protect, appointmentController.getMyAppointments);
 router.put("/appointments/:id/cancel", protect, appointmentController.cancel);
-router.put("/appointments/:id/complete", protect, restrictTo("doctor"), appointmentController.complete);
+router.put("/appointments/:id/complete", protect, restrictTo("doctor", "patient"), appointmentController.complete);
 router.put("/appointments/:id/reschedule", protect, rescheduleValidator, validateRequest, appointmentController.reschedule);
 
 // ==========================================

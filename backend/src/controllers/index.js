@@ -59,8 +59,16 @@ export const authController = {
 export const patientController = {
   updateProfile: async (req, res) => {
     try {
-      const { name, email, password } = req.body;
-      const updatedUser = await patientService.updatePatientProfile(req.user._id, name, email, password);
+      const { name, email, password, phone, bloodGroup, medicalHistory } = req.body;
+      const updatedUser = await patientService.updatePatientProfile(
+        req.user._id,
+        name,
+        email,
+        password,
+        phone,
+        bloodGroup,
+        medicalHistory
+      );
       sendSuccess(res, "Patient profile updated successfully", updatedUser);
     } catch (error) {
       sendError(res, error.message);
@@ -89,7 +97,7 @@ export const patientController = {
   addReview: async (req, res) => {
     try {
       const { doctorId, rating, comment } = req.body;
-      const review = await doctorService.addReview(doctorId, req.user.name, rating, comment);
+      const review = await doctorService.addReview(doctorId, req.user._id, req.user.name, rating, comment);
       sendSuccess(res, "Review submitted successfully", review);
     } catch (error) {
       sendError(res, error.message);
@@ -163,7 +171,7 @@ export const patientController = {
 
   getPatientReviews: async (req, res) => {
     try {
-      const list = await doctorService.getPatientReviews(req.user.name);
+      const list = await doctorService.getPatientReviews(req.user._id, req.user.name);
       sendSuccess(res, "Fetched reviews written by patient", list);
     } catch (error) {
       sendError(res, error.message);
@@ -173,7 +181,7 @@ export const patientController = {
   updateReview: async (req, res) => {
     try {
       const { rating, comment } = req.body;
-      const rev = await doctorService.updateReview(req.params.id, req.user.name, rating, comment);
+      const rev = await doctorService.updateReview(req.params.id, req.user._id, req.user.name, rating, comment);
       sendSuccess(res, "Review updated successfully", rev);
     } catch (error) {
       sendError(res, error.message);
@@ -182,7 +190,7 @@ export const patientController = {
 
   deleteReview: async (req, res) => {
     try {
-      await doctorService.deleteReview(req.params.id, req.user.name);
+      await doctorService.deleteReview(req.params.id, req.user._id, req.user.name);
       sendSuccess(res, "Review deleted successfully");
     } catch (error) {
       sendError(res, error.message);
@@ -232,7 +240,7 @@ export const doctorController = {
 
   deleteSlot: async (req, res) => {
     try {
-      await doctorService.deleteDoctorSlot(req.params.id);
+      await doctorService.deleteDoctorSlot(req.params.id, req.user._id);
       sendSuccess(res, "Slot deleted successfully");
     } catch (error) {
       sendError(res, error.message);
@@ -242,7 +250,14 @@ export const doctorController = {
   createPrescription: async (req, res) => {
     try {
       const { patientId, symptoms, medicines, notes } = req.body;
-      const rx = await doctorService.createPrescription(patientId, req.user.name, symptoms, medicines, notes);
+      const rx = await doctorService.createPrescription(
+        patientId,
+        req.user._id,
+        req.user.name,
+        symptoms,
+        medicines,
+        notes
+      );
       sendSuccess(res, "Prescription issued successfully", rx);
     } catch (error) {
       sendError(res, error.message);
@@ -269,7 +284,7 @@ export const doctorController = {
 
   getPrescriptions: async (req, res) => {
     try {
-      const list = await doctorService.getDoctorPrescriptions(req.user.name);
+      const list = await doctorService.getDoctorPrescriptions(req.user._id, req.user.name);
       sendSuccess(res, "Fetched doctor prescriptions history", list);
     } catch (error) {
       sendError(res, error.message);
@@ -278,7 +293,7 @@ export const doctorController = {
 
   getPrescriptionById: async (req, res) => {
     try {
-      const rx = await doctorService.getPrescriptionById(req.params.id);
+      const rx = await doctorService.getPrescriptionById(req.params.id, req.user);
       if (!rx) return sendError(res, "Prescription not found", 404);
       sendSuccess(res, "Fetched prescription details", rx);
     } catch (error) {
@@ -374,7 +389,7 @@ export const appointmentController = {
 
   cancel: async (req, res) => {
     try {
-      await appointmentService.cancelAppointment(req.params.id);
+      await appointmentService.cancelAppointment(req.params.id, req.user);
       sendSuccess(res, "Appointment cancelled successfully");
     } catch (error) {
       sendError(res, error.message);
@@ -383,7 +398,7 @@ export const appointmentController = {
 
   complete: async (req, res) => {
     try {
-      await appointmentService.completeAppointment(req.params.id);
+      await appointmentService.completeAppointment(req.params.id, req.user);
       sendSuccess(res, "Appointment completed successfully");
     } catch (error) {
       sendError(res, error.message);
@@ -393,7 +408,7 @@ export const appointmentController = {
   reschedule: async (req, res) => {
     try {
       const { newSlotId } = req.body;
-      const updatedApp = await appointmentService.rescheduleAppointment(req.params.id, newSlotId);
+      const updatedApp = await appointmentService.rescheduleAppointment(req.params.id, newSlotId, req.user);
       sendSuccess(res, "Appointment rescheduled successfully", updatedApp);
     } catch (error) {
       sendError(res, error.message);
@@ -414,7 +429,7 @@ export const notificationController = {
 
   markRead: async (req, res) => {
     try {
-      const notif = await notificationService.markAsRead(req.params.id);
+      const notif = await notificationService.markAsRead(req.params.id, req.user._id);
       sendSuccess(res, "Notification marked as read", notif);
     } catch (error) {
       sendError(res, error.message);

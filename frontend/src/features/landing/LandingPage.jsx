@@ -1,10 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Sparkles, FileText, CheckCircle, Headphones, Shield, Landmark, PhoneCall, HelpCircle, Search, Video, Activity } from "lucide-react";
-import { mockService } from "../../services/mockService";
+import { useAuth } from "../../context/AuthContext";
 
 export default function LandingPage() {
-  const user = mockService.getCurrentUser();
+  const { user } = useAuth();
   let findDoctorsPath = "/register";
   if (user) {
     if (user.role === "patient") findDoctorsPath = "/patient?tab=marketplace";

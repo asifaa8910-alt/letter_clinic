@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { mockService } from "../../services/mockService";
+import { apiService } from "../../services/apiService";
 import { RefreshCw } from "lucide-react";
 import AdminOverview from "./components/AdminOverview";
 import AdminDoctors from "./components/AdminDoctors";
 import AdminPatients from "./components/AdminPatients";
 import AdminLogs from "./components/AdminLogs";
+import Toast from "../../components/Toast";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 export default function AdminDashboard() {
   const location = useLocation();
@@ -21,17 +23,20 @@ export default function AdminDashboard() {
     if (tabName === "overview") navigate("/admin");
     else navigate(`/admin/${tabName}`);
   };
+
   const [stats, setStats] = useState(null);
   const [verifications, setVerifications] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [patients, setPatients] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [toastMsg, setToastMsg] = useState("");
-  
+  const [toastType, setToastType] = useState("success");
+
   // Search Filters
   const [docSearch, setDocSearch] = useState("");
   const [patSearch, setPatSearch] = useState("");
-  
+
   // Modal States
   const [showDocModal, setShowDocModal] = useState(false);
   const [showPatModal, setShowPatModal] = useState(false);
@@ -56,20 +61,29 @@ export default function AdminDashboard() {
   const [patEmail, setPatEmail] = useState("");
   const [patPassword, setPatPassword] = useState("");
 
+  const showToast = (msg, type = "success") => {
+    setToastMsg(msg);
+    setToastType(type);
+  };
+
   const refreshData = async () => {
     try {
-      const statsData = await mockService.getAdminStats();
-      const verificationsData = await mockService.getVerifications();
-      const doctorsData = await mockService.getDoctors();
-      const patientsData = await mockService.getPatients();
-      const logsData = await mockService.getActivityLogs();
+      const [statsData, verificationsData, doctorsData, patientsData, logsData] = await Promise.all([
+        apiService.getAdminStats(),
+        apiService.getVerifications(),
+        apiService.getDoctors(),
+        apiService.getPatients(),
+        apiService.getActivityLogs()
+      ]);
       setStats(statsData);
-      setVerifications(verificationsData);
-      setDoctors(doctorsData);
-      setPatients(patientsData);
-      setLogs(logsData);
+      setVerifications(verificationsData || []);
+      setDoctors(doctorsData || []);
+      setPatients(patientsData || []);
+      setLogs(logsData || []);
     } catch (err) {
-      console.error(err);
+      showToast(err.message || "Failed to load admin data", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -77,18 +91,13 @@ export default function AdminDashboard() {
     refreshData();
   }, []);
 
-  const showToast = (msg) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 4000);
-  };
-
   const handleUpdateStatus = async (id, status) => {
     try {
-      await mockService.updateVerificationStatus(id, status);
-      showToast(`Verification status updated to: ${status}`);
+      await apiService.updateVerificationStatus(id, status);
+      showToast(`Practitioner verification status updated to: ${status}`);
       await refreshData();
     } catch (err) {
-      alert(err.message);
+      showToast(err.message || "Status update failed", "error");
     }
   };
 
@@ -113,12 +122,12 @@ export default function AdminDashboard() {
     setEditingDocId(doc.id);
     setDocName(doc.name);
     setDocEmail(doc.email || "");
-    setDocPassword(""); // keep empty unless updating
+    setDocPassword("");
     setDocSpecialty(doc.specialty);
-    setDocExperience(doc.experience.toString());
-    setDocFee(doc.fee.toString());
-    setDocHospital(doc.hospital);
-    setDocBio(doc.bio);
+    setDocExperience(doc.experience?.toString() || "0");
+    setDocFee(doc.fee?.toString() || "400");
+    setDocHospital(doc.hospital || "");
+    setDocBio(doc.bio || "");
     setDocVerified(doc.verified);
     setDocLicense("");
     setDocDegree("");
@@ -143,27 +152,31 @@ export default function AdminDashboard() {
       };
 
       if (editingDocId) {
-        await mockService.updateDoctorByAdmin(editingDocId, docData);
+        await apiService.updateDoctorByAdmin(editingDocId, docData);
         showToast(`Doctor Dr. ${docName} updated successfully.`);
       } else {
-        await mockService.addDoctorByAdmin(docData);
+        await apiService.addDoctorByAdmin(docData);
         showToast(`Doctor Dr. ${docName} registered successfully.`);
       }
       setShowDocModal(false);
       await refreshData();
     } catch (err) {
-      alert(err.message);
+      showToast(err.message || "Operation failed", "error");
     }
   };
 
   const handleDeleteDoc = async (id, name) => {
-    if (window.confirm(`Are you sure you want to delete Doctor ${name}? This will remove all their availability slots and scheduled appointments.`)) {
+    if (
+      window.confirm(
+        `Are you sure you want to delete Doctor ${name}? This will remove all their availability slots and appointments.`
+      )
+    ) {
       try {
-        await mockService.deleteDoctorByAdmin(id);
+        await apiService.deleteDoctorByAdmin(id);
         showToast(`Doctor ${name} deleted.`);
         await refreshData();
       } catch (err) {
-        alert(err.message);
+        showToast(err.message, "error");
       }
     }
   };
@@ -195,72 +208,101 @@ export default function AdminDashboard() {
       };
 
       if (editingPatId) {
-        await mockService.updatePatientByAdmin(editingPatId, patData);
+        await apiService.updatePatientByAdmin(editingPatId, patData);
         showToast(`Patient ${patName} updated successfully.`);
       } else {
-        await mockService.addPatientByAdmin(patData);
+        await apiService.addPatientByAdmin(patData);
         showToast(`Patient ${patName} registered successfully.`);
       }
       setShowPatModal(false);
       await refreshData();
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, "error");
     }
   };
 
   const handleDeletePat = async (id, name) => {
-    if (window.confirm(`Are you sure you want to delete Patient ${name}? This will remove all their scheduled appointments.`)) {
+    if (window.confirm(`Are you sure you want to delete Patient ${name}?`)) {
       try {
-        await mockService.deletePatientByAdmin(id);
+        await apiService.deletePatientByAdmin(id);
         showToast(`Patient ${name} deleted.`);
         await refreshData();
       } catch (err) {
-        alert(err.message);
+        showToast(err.message, "error");
       }
     }
   };
 
   const handleClearLogs = async () => {
     if (window.confirm("Are you sure you want to clear all activity log history?")) {
-      await mockService.clearActivityLogs();
+      await apiService.clearActivityLogs();
       showToast("Activity log history cleared.");
       await refreshData();
     }
   };
 
-  // Filters
-  const filteredDoctors = doctors.filter(doc => 
-    doc.name.toLowerCase().includes(docSearch.toLowerCase()) ||
-    doc.specialty.toLowerCase().includes(docSearch.toLowerCase()) ||
-    doc.hospital.toLowerCase().includes(docSearch.toLowerCase())
+  const filteredDoctors = doctors.filter(
+    (doc) =>
+      doc.name.toLowerCase().includes(docSearch.toLowerCase()) ||
+      doc.specialty.toLowerCase().includes(docSearch.toLowerCase()) ||
+      doc.hospital?.toLowerCase().includes(docSearch.toLowerCase())
   );
 
-  const filteredPatients = patients.filter(pat => 
-    pat.name.toLowerCase().includes(patSearch.toLowerCase()) ||
-    pat.email.toLowerCase().includes(patSearch.toLowerCase())
+  const filteredPatients = patients.filter(
+    (pat) =>
+      pat.name.toLowerCase().includes(patSearch.toLowerCase()) ||
+      pat.email.toLowerCase().includes(patSearch.toLowerCase())
   );
+
+  if (loading) {
+    return <LoadingSpinner message="Loading administrative portal..." />;
+  }
 
   return (
-    <div className="container" style={{ padding: "40px 24px", minHeight: "80vh" }}>
-      {toastMsg && <div className="toast">✓ {toastMsg}</div>}
+    <div className="container py-4" style={{ minHeight: "80vh" }}>
+      {/* Toast Banner */}
+      <Toast message={toastMsg} type={toastType} onClose={() => setToastMsg("")} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px", flexWrap: "wrap", gap: "20px" }}>
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
-          <h2 style={{ fontSize: "28px" }}>Platform Admin Dashboard</h2>
-          <p style={{ fontSize: "14px" }}>System monitoring, practitioners verification, and client logs database</p>
+          <h2 className="fw-bold mb-1" style={{ fontSize: "28px" }}>Platform Administrator Console</h2>
+          <p className="text-secondary small mb-0">System metrics, doctor verification board, and security activity audit logs</p>
         </div>
-        <button onClick={refreshData} className="btn btn-ghost" style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
-          <RefreshCw size={16} />
+        <button
+          onClick={refreshData}
+          className="btn btn-outline-secondary btn-sm rounded-pill d-flex align-items-center gap-2 px-3 py-2"
+        >
+          <RefreshCw size={15} />
           <span>Refresh Database</span>
         </button>
       </div>
 
-      {/* Admin Dashboard Sub-navigation Tabs */}
-      <div style={{ display: "flex", gap: "12px", borderBottom: "1px solid var(--color-border)", paddingBottom: "16px", marginBottom: "32px", overflowX: "auto" }}>
-        <button onClick={() => setActiveTab("overview")} className={`btn ${activeTab === "overview" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>System Overview</button>
-        <button onClick={() => setActiveTab("doctors")} className={`btn ${activeTab === "doctors" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>Manage Doctors ({doctors.length})</button>
-        <button onClick={() => setActiveTab("patients")} className={`btn ${activeTab === "patients" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>Manage Patients ({patients.length})</button>
-        <button onClick={() => setActiveTab("logs")} className={`btn ${activeTab === "logs" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>Activity Logs ({logs.length})</button>
+      {/* Tabs */}
+      <div className="d-flex gap-2 border-bottom pb-3 mb-4 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`btn ${activeTab === "overview" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          System Overview
+        </button>
+        <button
+          onClick={() => setActiveTab("doctors")}
+          className={`btn ${activeTab === "doctors" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          Manage Doctors ({doctors.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("patients")}
+          className={`btn ${activeTab === "patients" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          Manage Patients ({patients.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("logs")}
+          className={`btn ${activeTab === "logs" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          Activity Logs ({logs.length})
+        </button>
       </div>
 
       {/* Tab Content 1: Overview */}
@@ -334,10 +376,7 @@ export default function AdminDashboard() {
 
       {/* Tab Content 4: System Activity Logs */}
       {activeTab === "logs" && (
-        <AdminLogs
-          logs={logs}
-          handleClearLogs={handleClearLogs}
-        />
+        <AdminLogs logs={logs} handleClearLogs={handleClearLogs} />
       )}
     </div>
   );

@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { mockService } from "../../services/mockService";
+import { useAuth } from "../../context/AuthContext";
+import { apiService } from "../../services/apiService";
 import DoctorOverview from "./components/DoctorOverview";
 import DoctorSlots from "./components/DoctorSlots";
 import DoctorReviews from "./components/DoctorReviews";
 import DoctorProfile from "./components/DoctorProfile";
 import PrescriptionFormModal from "./components/PrescriptionFormModal";
+import VideoConsultationModal from "../../components/VideoConsultationModal";
+import Toast from "../../components/Toast";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
-export default function DoctorDashboard({ user, onProfileUpdate }) {
+export default function DoctorDashboard() {
+  const { user, updateUser } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -21,10 +26,13 @@ export default function DoctorDashboard({ user, onProfileUpdate }) {
     if (tabName === "overview") navigate("/doctor");
     else navigate(`/doctor/${tabName}`);
   };
+
   const [slots, setSlots] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [toastMsg, setToastMsg] = useState("");
+  const [toastType, setToastType] = useState("success");
 
   // Doctor Profile Form state
   const [profileDoc, setProfileDoc] = useState(null);
@@ -42,34 +50,47 @@ export default function DoctorDashboard({ user, onProfileUpdate }) {
   const [slotTime, setSlotTime] = useState("09:00 AM");
 
   // Prescription Generator Form State
-  const [prescriptionForm, setPrescriptionForm] = useState(null); // appointment details or null
+  const [prescriptionForm, setPrescriptionForm] = useState(null);
   const [rxSymptoms, setRxSymptoms] = useState("");
   const [medicines, setMedicines] = useState([{ name: "", dosage: "", duration: "", instructions: "" }]);
   const [rxNotes, setRxNotes] = useState("");
 
+  // Active Video Consultation state
+  const [activeConsultation, setActiveConsultation] = useState(null);
+
+  const showToast = (msg, type = "success") => {
+    setToastMsg(msg);
+    setToastType(type);
+  };
+
   const refreshData = useCallback(async () => {
     if (user) {
       try {
-        const slotsData = await mockService.getSlots(user.id);
-        const appsData = await mockService.getAppointments("doctor", user.id);
-        const revsData = await mockService.getReviews(user.id);
-        setSlots(slotsData);
-        setAppointments(appsData);
-        setReviews(revsData);
+        const [slotsData, appsData, revsData, docProfile] = await Promise.all([
+          apiService.getSlots(user.id),
+          apiService.getAppointments("doctor", user.id),
+          apiService.getReviews(user.id),
+          apiService.getDoctorById(user.id)
+        ]);
 
-        const docProfile = await mockService.getDoctorById(user.id);
+        setSlots(slotsData || []);
+        setAppointments(appsData || []);
+        setReviews(revsData || []);
+
         if (docProfile) {
           setProfileDoc(docProfile);
           setProfileName(docProfile.name || user.name);
-          setProfileSpecialty(docProfile.specialty);
-          setProfileExperience(docProfile.experience.toString());
-          setProfileFee(docProfile.fee.toString());
-          setProfileHospital(docProfile.hospital);
-          setProfileBio(docProfile.bio);
+          setProfileSpecialty(docProfile.specialty || "General Medicine");
+          setProfileExperience(docProfile.experience?.toString() || "0");
+          setProfileFee(docProfile.fee?.toString() || "400");
+          setProfileHospital(docProfile.hospital || "City Hospital");
+          setProfileBio(docProfile.bio || "");
           setProfileEmail(user.email);
         }
       } catch (err) {
-        console.error(err);
+        console.error("Doctor refresh error:", err.message);
+      } finally {
+        setLoading(false);
       }
     }
   }, [user]);
@@ -78,15 +99,10 @@ export default function DoctorDashboard({ user, onProfileUpdate }) {
     refreshData();
   }, [refreshData]);
 
-  const showToast = (msg) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 4000);
-  };
-
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
-      await mockService.updateDoctorProfile(user.id, {
+      await apiService.updateDoctorProfile(user.id, {
         name: profileName,
         email: profileEmail,
         password: profilePassword || undefined,
@@ -96,41 +112,38 @@ export default function DoctorDashboard({ user, onProfileUpdate }) {
         hospital: profileHospital,
         bio: profileBio
       });
-      
-      const currentUser = mockService.getCurrentUser();
-      if (currentUser) {
-        currentUser.name = profileName;
-        currentUser.email = profileEmail;
-        localStorage.setItem("currentUser", JSON.stringify(currentUser));
-      }
-      
-      showToast("Profile details updated successfully.");
+
+      updateUser({ ...user, name: profileName, email: profileEmail });
+      showToast("Doctor profile updated successfully.");
       setProfilePassword("");
-      if (onProfileUpdate) onProfileUpdate();
       await refreshData();
     } catch (err) {
-      alert(err.message);
+      showToast(err.message || "Failed to update profile", "error");
     }
   };
 
   const handleAddSlot = async (e) => {
     e.preventDefault();
+    if (!slotDate || !slotTime) {
+      showToast("Date and time are required", "error");
+      return;
+    }
     try {
-      await mockService.addSlot(user.id, slotDate, slotTime);
+      await apiService.addSlot(user.id, slotDate, slotTime);
       showToast("Availability slot added successfully");
       await refreshData();
     } catch (err) {
-      alert(err.message);
+      showToast(err.message || "Failed to add slot", "error");
     }
   };
 
   const handleDeleteSlot = async (id) => {
     try {
-      await mockService.deleteSlot(id);
-      showToast("Slot deleted");
+      await apiService.deleteSlot(id);
+      showToast("Slot removed");
       await refreshData();
     } catch (err) {
-      console.error(err);
+      showToast(err.message || "Failed to delete slot", "error");
     }
   };
 
@@ -158,34 +171,98 @@ export default function DoctorDashboard({ user, onProfileUpdate }) {
 
   const handleCreatePrescription = async (e) => {
     e.preventDefault();
+    const validMedicines = medicines.filter((m) => m.name.trim() !== "");
+    if (validMedicines.length === 0) {
+      showToast("Please add at least one medication with a valid name", "error");
+      return;
+    }
+
     try {
-      await mockService.createPrescription(
+      await apiService.createPrescription(
         prescriptionForm.patientId,
         user.name,
         rxSymptoms,
-        medicines.filter(m => m.name.trim() !== ""),
+        validMedicines,
         rxNotes
       );
-      
+
       // Auto-complete appointment status
-      await mockService.completeAppointment(prescriptionForm.id);
-      showToast(`Prescription created and sent to ${prescriptionForm.patientName}`);
+      await apiService.completeAppointment(prescriptionForm.id);
+      showToast(`Prescription created and delivered to ${prescriptionForm.patientName}`);
       setPrescriptionForm(null);
       await refreshData();
     } catch (err) {
-      alert(err.message);
+      showToast(err.message || "Prescription creation failed", "error");
     }
   };
 
-  return (
-    <div className="container" style={{ padding: "40px 24px" }}>
-      {toastMsg && <div className="toast">✓ {toastMsg}</div>}
+  const handleJoinConsultation = (app) => {
+    setActiveConsultation(app);
+  };
 
-      <div style={{ display: "flex", gap: "12px", borderBottom: "1px solid rgba(0,0,0,0.08)", paddingBottom: "16px", marginBottom: "32px", overflowX: "auto" }}>
-        <button onClick={() => { setActiveTab("overview"); refreshData(); }} className={`btn ${activeTab === "overview" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>Dashboard Overview</button>
-        <button onClick={() => { setActiveTab("slots"); refreshData(); }} className={`btn ${activeTab === "slots" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>Availability Slots</button>
-        <button onClick={() => { setActiveTab("reviews"); refreshData(); }} className={`btn ${activeTab === "reviews" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>Patient Reviews ({reviews.length})</button>
-        <button onClick={() => { setActiveTab("profile"); refreshData(); }} className={`btn ${activeTab === "profile" ? "btn-primary" : "btn-text"}`} style={{ padding: "8px 20px" }}>My Profile</button>
+  const handleEndConsultation = async (appId) => {
+    try {
+      await apiService.completeAppointment(appId);
+      showToast("Consultation completed!");
+    } catch (err) {
+      console.warn("Complete appointment note:", err.message);
+    } finally {
+      const appRef = activeConsultation;
+      setActiveConsultation(null);
+      await refreshData();
+      if (appRef) {
+        openPrescribeModal(appRef);
+      }
+    }
+  };
+
+  if (loading) {
+    return <LoadingSpinner message="Loading doctor portal..." />;
+  }
+
+  return (
+    <div className="container py-4">
+      {/* Toast Alert */}
+      <Toast message={toastMsg} type={toastType} onClose={() => setToastMsg("")} />
+
+      {/* Tabs */}
+      <div className="d-flex gap-2 border-bottom pb-3 mb-4 overflow-x-auto">
+        <button
+          onClick={() => {
+            setActiveTab("overview");
+            refreshData();
+          }}
+          className={`btn ${activeTab === "overview" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          Consultations Overview
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("slots");
+            refreshData();
+          }}
+          className={`btn ${activeTab === "slots" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          Availability Slots
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("reviews");
+            refreshData();
+          }}
+          className={`btn ${activeTab === "reviews" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          Patient Reviews ({reviews.length})
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("profile");
+            refreshData();
+          }}
+          className={`btn ${activeTab === "profile" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-4 py-2`}
+        >
+          My Profile & Credentials
+        </button>
       </div>
 
       {/* Tab Content 1: Overview */}
@@ -194,6 +271,7 @@ export default function DoctorDashboard({ user, onProfileUpdate }) {
           user={user}
           appointments={appointments}
           openPrescribeModal={openPrescribeModal}
+          handleJoinConsultation={handleJoinConsultation}
         />
       )}
 
@@ -211,9 +289,7 @@ export default function DoctorDashboard({ user, onProfileUpdate }) {
       )}
 
       {/* Tab Content 3: Patient Reviews */}
-      {activeTab === "reviews" && (
-        <DoctorReviews reviews={reviews} />
-      )}
+      {activeTab === "reviews" && <DoctorReviews reviews={reviews} />}
 
       {/* Tab Content 4: My Profile */}
       {activeTab === "profile" && (
@@ -237,6 +313,15 @@ export default function DoctorDashboard({ user, onProfileUpdate }) {
           profileBio={profileBio}
           setProfileBio={setProfileBio}
           handleSaveProfile={handleSaveProfile}
+        />
+      )}
+
+      {/* Interactive WebRTC Video Consultation Room */}
+      {activeConsultation && (
+        <VideoConsultationModal
+          appointment={activeConsultation}
+          currentUser={user}
+          onEndCall={handleEndConsultation}
         />
       )}
 

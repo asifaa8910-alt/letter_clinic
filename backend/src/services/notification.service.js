@@ -1,11 +1,13 @@
 import { Notification } from "../models/notification.model.js";
 
 export const getNotifications = async (userId) => {
-  return await Notification.find({ userId });
+  return await Notification.find({ userId }).sort({ createdAt: -1 });
 };
 
-export const markAsRead = async (notificationId) => {
-  return await Notification.findByIdAndUpdate(notificationId, { read: true }, { new: true });
+export const markAsRead = async (notificationId, userId) => {
+  // IDOR Protection: Verify notification belongs to caller
+  const query = userId ? { _id: notificationId, userId } : { _id: notificationId };
+  return await Notification.findOneAndUpdate(query, { read: true }, { new: true });
 };
 
 export const markAllAsRead = async (userId) => {
