@@ -64,8 +64,8 @@ export default function Header() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <header className="app-header sticky-top bg-white border-bottom shadow-sm">
-      <div className="container header-container d-flex justify-content-between align-items-center py-2">
+    <header className="app-header sticky-top">
+      <div className="container header-container d-flex justify-content-between align-items-center">
         {/* Brand / Logo */}
         <Link to="/" className="logo-container text-decoration-none d-flex align-items-center gap-2">
           <div
@@ -82,7 +82,7 @@ export default function Header() {
           >
             <Activity size={20} />
           </div>
-          <span className="fw-bold fs-5 text-dark">Letters Clinic</span>
+          <span className="logo-title fw-bold fs-5">Letters Clinic</span>
           <span className="logo-dot"></span>
         </Link>
 
@@ -128,11 +128,11 @@ export default function Header() {
           {/* Theme Switcher */}
           <button
             onClick={toggleTheme}
-            className="btn btn-outline-secondary btn-sm rounded-circle p-2 d-flex align-items-center justify-content-center"
+            className="theme-toggle-btn"
             title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
             aria-label="Toggle Theme"
           >
-            {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+            {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
           </button>
 
           {user ? (
@@ -141,10 +141,10 @@ export default function Header() {
               <div className="position-relative">
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="btn btn-outline-secondary btn-sm rounded-circle p-2 position-relative"
+                  className="theme-toggle-btn position-relative"
                   title="Notifications"
                 >
-                  <Bell size={16} />
+                  <Bell size={17} />
                   {unreadCount > 0 && (
                     <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: "10px" }}>
                       {unreadCount}
@@ -153,12 +153,9 @@ export default function Header() {
                 </button>
 
                 {showDropdown && (
-                  <div
-                    className="position-absolute end-0 mt-2 bg-white rounded-3 shadow-lg border p-3"
-                    style={{ width: "320px", zIndex: 1050 }}
-                  >
-                    <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-                      <span className="fw-bold small text-dark">Notifications ({notifications.length})</span>
+                  <div className="header-dropdown-menu">
+                    <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2" style={{ borderColor: "rgba(128,128,128,0.2)" }}>
+                      <span className="fw-bold small">Notifications ({notifications.length})</span>
                       <div className="d-flex gap-2">
                         <button
                           onClick={handleMarkAllAsRead}
@@ -179,7 +176,7 @@ export default function Header() {
 
                     <div style={{ maxHeight: "240px", overflowY: "auto" }} className="d-flex flex-column gap-2">
                       {notifications.length === 0 ? (
-                        <p className="small text-muted text-center py-3 mb-0">No notifications.</p>
+                        <p className="small text-center py-3 mb-0" style={{ opacity: 0.7 }}>No notifications.</p>
                       ) : (
                         notifications.map((notif) => (
                           <div
@@ -188,21 +185,20 @@ export default function Header() {
                               handleMarkAsRead(notif.id);
                               setShowDropdown(false);
                             }}
-                            className={`p-2 rounded border small ${notif.read ? "bg-white" : "bg-light border-primary-subtle"}`}
-                            style={{ cursor: "pointer" }}
+                            className={`header-dropdown-item ${notif.read ? "read" : "unread"}`}
                           >
                             <div className="d-flex justify-content-between align-items-center mb-1">
-                              <strong className="text-dark" style={{ fontSize: "12px" }}>
+                              <strong style={{ fontSize: "12px" }}>
                                 {notif.title}
                               </strong>
                               {!notif.read && (
                                 <span className="badge bg-primary" style={{ width: "6px", height: "6px", padding: 0 }}></span>
                               )}
                             </div>
-                            <p className="text-secondary mb-1" style={{ fontSize: "11px" }}>
+                            <p className="mb-1" style={{ fontSize: "11px", opacity: 0.85 }}>
                               {notif.message}
                             </p>
-                            <span className="text-muted" style={{ fontSize: "10px" }}>
+                            <span style={{ fontSize: "10px", opacity: 0.65 }}>
                               {notif.timestamp}
                             </span>
                           </div>
@@ -214,9 +210,9 @@ export default function Header() {
               </div>
 
               {/* User badge */}
-              <div className="d-none d-sm-flex align-items-center gap-1 bg-light px-3 py-1 rounded-pill border">
-                <span className="fw-semibold small text-dark">{user.name}</span>
-                <span className="badge bg-secondary-subtle text-secondary text-capitalize" style={{ fontSize: "10px" }}>
+              <div className="header-user-badge d-none d-sm-flex align-items-center gap-2 px-3 py-1 rounded-pill">
+                <span className="fw-semibold small">{user.name}</span>
+                <span className="header-role-badge badge rounded-pill text-capitalize" style={{ fontSize: "10px" }}>
                   {user.role}
                 </span>
               </div>
@@ -224,7 +220,7 @@ export default function Header() {
               {/* Logout button */}
               <button
                 onClick={handleLogout}
-                className="btn btn-outline-danger btn-sm rounded-pill d-flex align-items-center gap-1 px-3"
+                className="btn btn-logout btn-sm rounded-pill d-flex align-items-center gap-1 px-3 py-1 text-decoration-none"
               >
                 <LogOut size={14} />
                 <span className="d-none d-sm-inline">Logout</span>
@@ -232,10 +228,10 @@ export default function Header() {
             </>
           ) : (
             <div className="d-flex align-items-center gap-2">
-              <Link to="/login" className="btn btn-outline-primary btn-sm rounded-pill px-3">
+              <Link to="/login" className="btn btn-ghost btn-sm rounded-pill px-3 py-1 fw-medium text-decoration-none">
                 Login
               </Link>
-              <Link to="/register" className="btn btn-primary btn-sm rounded-pill px-3">
+              <Link to="/register" className="btn btn-primary btn-sm rounded-pill px-3 py-1 fw-medium text-decoration-none">
                 Sign Up
               </Link>
             </div>
@@ -244,7 +240,7 @@ export default function Header() {
           {/* Mobile hamburger button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="btn btn-outline-secondary btn-sm d-md-none p-2"
+            className="theme-toggle-btn d-md-none"
             aria-label="Toggle mobile menu"
           >
             {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
@@ -254,12 +250,12 @@ export default function Header() {
 
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
-        <div className="d-md-none bg-white border-top px-3 py-3">
+        <div className="mobile-drawer d-md-none px-3 py-3">
           <nav className="d-flex flex-column gap-2">
             <Link
               to="/"
               onClick={() => setMobileMenuOpen(false)}
-              className="py-2 text-decoration-none text-dark fw-medium"
+              className="drawer-nav-link py-2 text-decoration-none fw-medium"
             >
               Home
             </Link>
@@ -268,21 +264,21 @@ export default function Header() {
                 <Link
                   to="/patient"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2 text-decoration-none text-dark fw-medium"
+                  className="drawer-nav-link py-2 text-decoration-none fw-medium"
                 >
                   Patient Dashboard
                 </Link>
                 <Link
                   to="/patient/triage"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2 text-decoration-none text-dark fw-medium"
+                  className="drawer-nav-link py-2 text-decoration-none fw-medium"
                 >
                   AI Symptom Triage
                 </Link>
                 <Link
                   to="/patient/marketplace"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2 text-decoration-none text-dark fw-medium"
+                  className="drawer-nav-link py-2 text-decoration-none fw-medium"
                 >
                   Find Doctors
                 </Link>
@@ -293,14 +289,14 @@ export default function Header() {
                 <Link
                   to="/doctor"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2 text-decoration-none text-dark fw-medium"
+                  className="drawer-nav-link py-2 text-decoration-none fw-medium"
                 >
                   Doctor Portal
                 </Link>
                 <Link
                   to="/doctor/slots"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2 text-decoration-none text-dark fw-medium"
+                  className="drawer-nav-link py-2 text-decoration-none fw-medium"
                 >
                   Availability Slots
                 </Link>
@@ -311,7 +307,7 @@ export default function Header() {
                 <Link
                   to="/admin"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="py-2 text-decoration-none text-dark fw-medium"
+                  className="drawer-nav-link py-2 text-decoration-none fw-medium"
                 >
                   Admin Panel
                 </Link>
