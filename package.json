@@ -3,9 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "build": "cd frontend && npm install && npm run build",
-    "start": "cd backend && npm start"
+    "build": "npm run build --workspace=frontend",
+    "start": "npm start --workspace=backend",
+    "dev": "npm run dev --workspace=backend"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
